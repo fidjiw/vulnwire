@@ -1,0 +1,1366 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>漏讯 VulnWire</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============ tokens · dark-first console ============ */
+:root{
+  --bg:#0B1120;
+  --panel:#111A2E;
+  --panel-2:#0D1425;
+  --line:#223052;
+  --line-soft:#182543;
+  --text:#E7EDF9;
+  --muted:#8FA0C2;
+  --faint:#5E6E93;
+  --accent:#FFB224;          /* 信号琥珀 · 雷达信标 */
+  --accent-soft:rgba(255,178,36,.14);
+  --accent-ink:#0B1120;
+  --crit:#F43F5E;  --high:#FB923C;  --med:#FDE047;  --low:#38BDF8;
+  --ok:#34D399;
+  --chip-bg:rgba(255,255,255,.04);
+  --shadow:0 12px 32px rgba(2,7,18,.55);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#EDF1F8;
+    --panel:#FFFFFF;
+    --panel-2:#F4F7FC;
+    --line:#D6DEEC;
+    --line-soft:#E4EAF4;
+    --text:#17213A;
+    --muted:#5B6880;
+    --faint:#8A94AB;
+    --accent:#A85E00;
+    --accent-soft:rgba(168,94,0,.10);
+    --accent-ink:#FFFFFF;
+    --crit:#BE123C;  --high:#EA580C;  --med:#9A6B00;  --low:#0369A1;
+    --ok:#047857;
+    --chip-bg:rgba(23,33,58,.05);
+    --shadow:0 12px 28px rgba(23,33,58,.10);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#EDF1F8; --panel:#FFFFFF; --panel-2:#F4F7FC; --line:#D6DEEC; --line-soft:#E4EAF4;
+  --text:#17213A; --muted:#5B6880; --faint:#8A94AB;
+  --accent:#A85E00; --accent-soft:rgba(168,94,0,.10); --accent-ink:#FFFFFF;
+  --crit:#BE123C; --high:#EA580C; --med:#9A6B00; --low:#0369A1; --ok:#047857;
+  --chip-bg:rgba(23,33,58,.05); --shadow:0 12px 28px rgba(23,33,58,.10);
+}
+
+/* ============ base ============ */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font:14px/1.65 "IBM Plex Sans","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:"IBM Plex Mono","PingFang SC",monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.eyebrow{
+  font-family:"Chakra Petch","IBM Plex Sans",sans-serif;
+  font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);
+}
+.wrap{max-width:1400px;margin:0 auto;padding:0 20px}
+
+/* ============ top bar ============ */
+.topbar{
+  border-bottom:1px solid var(--line);
+  background:var(--panel);
+  position:sticky;top:0;z-index:20;
+}
+.topbar-in{display:flex;align-items:center;gap:22px;height:56px}
+.brand{display:flex;align-items:center;gap:10px;flex:none}
+.brand-mark{
+  width:30px;height:30px;border-radius:8px;flex:none;
+  background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 55%, #F43F5E));
+  display:grid;place-items:center;color:var(--accent-ink);
+}
+.brand-name{font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:17px;letter-spacing:.02em;white-space:nowrap}
+.brand-name .zh{font-family:"IBM Plex Sans","PingFang SC",sans-serif;font-weight:700}
+.nav{display:flex;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav a{
+  color:var(--muted);padding:7px 12px;border-radius:7px;font-weight:500;white-space:nowrap;font-size:13.5px;
+}
+.nav a:hover{color:var(--text);background:var(--chip-bg);text-decoration:none}
+.nav a.on{color:var(--accent);background:var(--accent-soft);font-weight:600}
+.top-right{display:flex;align-items:center;gap:14px;flex:none}
+.live-pill{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:"Chakra Petch",sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;
+  color:var(--crit);border:1px solid color-mix(in srgb,var(--crit) 45%,transparent);
+  border-radius:999px;padding:3px 10px;
+}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--crit);animation:pulse 1.6s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--crit) 55%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
+.clock{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.avatar{
+  width:30px;height:30px;border-radius:50%;background:var(--line);
+  display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--text);
+  border:1px solid var(--line);
+}
+
+/* ============ ticker ============ */
+.ticker{border-bottom:1px solid var(--line);background:var(--panel-2);overflow:hidden;position:relative}
+.ticker-label{
+  position:absolute;left:0;top:0;bottom:0;z-index:2;display:flex;align-items:center;gap:8px;
+  padding:0 14px;background:var(--panel-2);border-right:1px solid var(--line);
+  font-family:"Chakra Petch",sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.14em;color:var(--accent);
+}
+.ticker-track{
+  display:inline-flex;gap:44px;white-space:nowrap;padding:7px 0 7px 130px;
+  animation:ticker 55s linear infinite;will-change:transform;
+}
+.ticker:hover .ticker-track{animation-play-state:paused}
+.ticker-track span{font-size:12.5px;color:var(--muted)}
+.ticker-track b{color:var(--text);font-weight:600}
+.ticker-track .tk-sev{font-weight:700}
+@keyframes ticker{to{transform:translateX(-50%)}}
+
+/* ============ layout ============ */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 352px;gap:18px;padding:18px 0 8px;align-items:start}
+@media (max-width:1080px){.main{grid-template-columns:1fr}}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.panel-head{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:14px 16px;border-bottom:1px solid var(--line-soft);
+}
+.panel-head h2{margin:0;font-size:15px;font-weight:700}
+.panel-head .spacer{flex:1}
+
+/* ============ filters ============ */
+.filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line-soft)}
+.sev-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12.5px;font-weight:600;color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:4px 12px;
+  transition:all .15s ease;
+}
+.sev-chip .sdot{width:8px;height:8px;border-radius:50%;background:var(--sc)}
+.sev-chip[aria-pressed="true"]{color:var(--text);border-color:var(--sc);background:color-mix(in srgb,var(--sc) 13%,transparent)}
+.sev-chip:hover{border-color:var(--sc)}
+.poc-toggle{
+  display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:4px 12px;
+}
+.poc-toggle[aria-pressed="true"]{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.search{
+  flex:1;min-width:170px;display:flex;align-items:center;gap:8px;
+  border:1px solid var(--line);border-radius:9px;padding:6px 11px;color:var(--faint);
+}
+.search input{
+  flex:1;border:none;background:none;color:var(--text);font:inherit;outline:none;min-width:60px;
+}
+.search input::placeholder{color:var(--faint)}
+.stream-btn{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+  color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:5px 11px;
+}
+.stream-btn:hover{color:var(--text);border-color:var(--muted)}
+.stream-btn.playing{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+
+/* ============ feed ============ */
+.feed{display:flex;flex-direction:column}
+.feed-item{
+  border-bottom:1px solid var(--line-soft);
+  border-left:3px solid var(--sev);
+  padding:13px 16px 13px 14px;cursor:pointer;
+  transition:background .15s ease;
+}
+.feed-item:last-child{border-bottom:none}
+.feed-item:hover{background:var(--chip-bg)}
+.feed-item.fresh{animation:flash 2.4s ease-out}
+@keyframes flash{0%{background:var(--accent-soft)}100%{background:transparent}}
+.fi-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.fi-id{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;color:var(--sev)}
+.fi-sev{
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  color:var(--sev);border:1px solid color-mix(in srgb,var(--sev) 45%,transparent);
+  border-radius:5px;padding:1px 7px;
+}
+.fi-cvss{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:var(--text);background:var(--chip-bg);border-radius:5px;padding:1px 7px}
+.fi-meta{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--faint);white-space:nowrap}
+.fi-src{font-family:"Chakra Petch",sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fi-title{margin:5px 0 0;font-size:14.5px;font-weight:600;line-height:1.5}
+.fi-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;align-items:center}
+.tag{font-size:11.5px;color:var(--muted);background:var(--chip-bg);border-radius:5px;padding:1.5px 8px}
+.poc-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11.5px;font-weight:700;border-radius:5px;padding:1.5px 8px;
+}
+.poc-badge svg{width:11px;height:11px;flex:none}
+.poc-badge.exploited{color:#fff;background:var(--crit)}
+:root[data-theme="light"] .poc-badge.exploited, .poc-badge.exploited{color:#fff;background:var(--crit)}
+.poc-badge.poc{color:var(--high);background:color-mix(in srgb,var(--high) 14%,transparent)}
+.poc-badge.verify{color:var(--accent);background:var(--accent-soft)}
+.poc-badge.none{color:var(--muted);background:var(--chip-bg)}
+.fi-ai{margin:8px 0 0;font-size:12.5px;color:var(--muted);line-height:1.6}
+.fi-ai .ai-tag{
+  font-family:"Chakra Petch",sans-serif;font-size:9.5px;font-weight:700;letter-spacing:.1em;
+  color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 50%,transparent);
+  border-radius:4px;padding:0 5px;margin-right:7px;vertical-align:1px;
+}
+/* expandable detail */
+.fi-detail{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease;cursor:default}
+.feed-item.open .fi-detail{grid-template-rows:1fr}
+.fi-detail>div{overflow:hidden}
+.detail-in{margin-top:11px;padding-top:11px;border-top:1px dashed var(--line);display:grid;gap:9px}
+.d-row{font-size:12.5px;color:var(--muted)}
+.d-row b{color:var(--text);font-weight:600}
+.d-poc{
+  display:flex;align-items:center;gap:9px;font-size:12.5px;
+  background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:7px 11px;flex-wrap:wrap;
+}
+.d-poc .lang{font-size:11px;color:var(--faint)}
+.d-poc .stars{margin-left:auto;font-size:11.5px;color:var(--faint)}
+.feed-empty{padding:44px 16px;text-align:center;color:var(--faint);font-size:13px}
+
+/* ============ right rail ============ */
+.rail{display:flex;flex-direction:column;gap:18px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line-soft);border-radius:0 0 13px 13px;overflow:hidden}
+.stat{background:var(--panel);padding:13px 15px}
+.stat .s-label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.stat .s-val{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:600;line-height:1.25;color:var(--text)}
+.stat .s-val .u{font-size:13px;color:var(--faint);font-weight:400;margin-left:3px}
+.stat .s-delta{font-size:11.5px;font-weight:600}
+.stat .s-delta.up{color:var(--ok)}
+.stat .s-delta.warn{color:var(--crit)}
+.stat svg{display:block;width:100%;height:26px;margin-top:5px}
+
+/* radar */
+.radar-box{display:flex;gap:16px;align-items:center;padding:14px 16px}
+#radar{width:158px;height:158px;flex:none;border-radius:10px}
+.radar-legend{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+.rl-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.rl-row b{font-family:"IBM Plex Mono",monospace;color:var(--text);margin-left:auto;font-weight:600}
+.rl-dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--sc)}
+.radar-note{padding:0 16px 13px;font-size:11.5px;color:var(--faint);line-height:1.6}
+
+/* sources */
+.src-list{display:flex;flex-direction:column}
+.src-row{display:flex;align-items:center;gap:11px;padding:11px 16px;border-top:1px solid var(--line-soft)}
+.src-row:first-child{border-top:none}
+.src-ic{
+  width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;
+  background:var(--chip-bg);border:1px solid var(--line);color:var(--muted);
+}
+.src-ic svg{width:15px;height:15px}
+.src-name{font-size:13px;font-weight:600}
+.src-desc{font-size:11.5px;color:var(--faint)}
+.src-count{margin-left:auto;text-align:right}
+.src-count b{font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:600;color:var(--accent)}
+.src-count span{display:block;font-size:10.5px;color:var(--faint)}
+
+/* rules */
+.rule-list{display:flex;flex-direction:column}
+.rule{padding:12px 16px;border-top:1px solid var(--line-soft)}
+.rule:first-child{border-top:none}
+.rule-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rule-exp{font-size:13px;font-weight:600;font-family:"IBM Plex Mono",monospace}
+.rule-then{font-size:11.5px;color:var(--faint);margin-left:2px}
+.rule-dest{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.chan{
+  font-size:11px;font-weight:600;color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:2px 9px;
+  display:inline-flex;align-items:center;gap:5px;
+}
+.chan svg{width:10px;height:10px}
+.switch{margin-left:auto;display:inline-flex;border-radius:999px;width:34px;height:19px;background:var(--ok);position:relative;flex:none}
+.switch::after{content:"";position:absolute;top:2.5px;right:2.5px;width:14px;height:14px;border-radius:50%;background:#fff;transition:right .18s ease}
+.switch.off{background:var(--line)}
+.switch.off::after{right:17.5px}
+.new-rule{
+  margin:4px 16px 14px;display:flex;align-items:center;justify-content:center;gap:7px;
+  border:1px dashed var(--line);border-radius:9px;padding:9px;
+  font-size:12.5px;font-weight:600;color:var(--muted);
+}
+.new-rule:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ============ 视图切换 ============ */
+.view{display:none}
+.view.active{display:block}
+.view-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:18px 0 16px}
+.view-head h1{font-family:"Chakra Petch","IBM Plex Sans",sans-serif;font-size:21px;font-weight:700;margin:0}
+.view-head p{margin:3px 0 0;color:var(--muted);font-size:13px}
+.vh-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+
+/* 通用表格 */
+.tbl-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);font-weight:600;white-space:nowrap}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+.tbl tbody tr:hover td{background:var(--chip-bg)}
+.tbl tbody tr:last-child td{border-bottom:none}
+.td-main b{display:block;font-weight:600;font-size:13.5px}
+.td-main span{font-size:12px;color:var(--faint)}
+.tc{font-family:"IBM Plex Mono",monospace;font-size:12.5px;white-space:nowrap}
+.link-btn{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:4px 10px;white-space:nowrap}
+.link-btn:hover:not(:disabled){color:var(--accent);border-color:var(--accent)}
+.link-btn:disabled{opacity:.4;cursor:default}
+
+/* 状态徽章 */
+.st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;border-radius:5px;padding:1.5px 8px;white-space:nowrap}
+.st.wild{color:#fff;background:var(--crit)}
+.st.bad{color:var(--crit);background:color-mix(in srgb,var(--crit) 13%,transparent)}
+.st.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.st.wait{color:var(--accent);background:var(--accent-soft)}
+.st.mut{color:var(--muted);background:var(--chip-bg)}
+.st.info{color:var(--low);background:color-mix(in srgb,var(--low) 13%,transparent)}
+.sev-mini{font-size:11px;font-weight:700;color:var(--sev);border:1px solid color-mix(in srgb,var(--sev) 45%,transparent);border-radius:5px;padding:0 6px;white-space:nowrap}
+
+/* 汇总条 / 分页 */
+.sum-strip{display:flex;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line-soft)}
+.sum-strip .tag{font-size:12px}
+.sum-strip .tag b{font-weight:600}
+.pager{display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:12px 16px;font-size:12px;color:var(--faint)}
+
+/* 订阅规则页 */
+.rules-grid{display:grid;grid-template-columns:minmax(0,1fr) 368px;gap:16px;align-items:start}
+.rcard{padding:15px 17px}
+.rcard + .rcard{margin-top:14px}
+.rc-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rc-name{font-size:14.5px;font-weight:700}
+.rc-when{font-size:11.5px;color:var(--faint);white-space:nowrap}
+.rc-conds{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.rc-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.builder{position:sticky;top:86px}
+.b-label{font-size:12px;font-weight:600;color:var(--muted);margin:14px 0 7px}
+.b-in{padding:14px 16px 16px}
+.b-label:first-child{margin-top:0}
+.finput,.fsel{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:7px 10px;font:inherit;font-size:13px;outline:none}
+.finput:focus,.fsel:focus{border-color:var(--accent)}
+.cond-row{display:grid;grid-template-columns:1.25fr .9fr 1.1fr;gap:7px;margin-bottom:7px}
+.add-cond{width:100%;border:1px dashed var(--line);border-radius:8px;padding:7px;font-size:12.5px;color:var(--muted);font-weight:600}
+.add-cond:hover{color:var(--accent);border-color:var(--accent)}
+.chan.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.chan[aria-pressed]{cursor:pointer}
+.btn-row{display:flex;gap:9px;margin-top:16px}
+.btn-primary{background:var(--accent);color:var(--accent-ink);border-radius:9px;padding:9px 16px;font-weight:700;font-size:13px;flex:1}
+.btn-primary:hover{filter:brightness(1.06)}
+.btn-ghost{border:1px solid var(--line);border-radius:9px;padding:9px 14px;color:var(--muted);font-weight:600;font-size:13px}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted)}
+.adv-row{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted);margin:9px 0;flex-wrap:wrap}
+.adv-row .switch{margin-left:auto}
+
+/* API 页 */
+.api-grid{display:grid;grid-template-columns:208px minmax(0,1fr);gap:26px;align-items:start}
+.api-nav{position:sticky;top:86px;display:flex;flex-direction:column;gap:2px}
+.api-nav a{color:var(--muted);padding:7px 10px;border-radius:7px;font-size:13px}
+.api-nav a:hover{color:var(--text);background:var(--chip-bg);text-decoration:none}
+.api-sec{margin-bottom:28px;scroll-margin-top:88px}
+.api-sec h3{font-size:15.5px;margin:0 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.api-sec p{color:var(--muted);font-size:13px;margin:0 0 10px;line-height:1.7}
+.ep{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;border-radius:5px;padding:2px 8px;letter-spacing:.04em}
+.ep.get{color:var(--low);background:color-mix(in srgb,var(--low) 13%,transparent)}
+.ep.post{color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.ep.del{color:var(--crit);background:color-mix(in srgb,var(--crit) 13%,transparent)}
+.code{position:relative;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:13px 15px;overflow-x:auto;margin:8px 0 14px}
+.code pre{margin:0;font-family:"IBM Plex Mono","PingFang SC",monospace;font-size:12.3px;line-height:1.7;color:var(--text);white-space:pre}
+.code .k{color:var(--accent)}
+.code .c{color:var(--faint)}
+.cp-btn{position:absolute;top:8px;right:8px;font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 9px;background:var(--panel)}
+.cp-btn:hover{color:var(--accent);border-color:var(--accent)}
+.token-card{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px dashed var(--line);border-radius:10px;padding:12px 15px;margin:10px 0 14px;background:var(--panel-2)}
+
+/* tooltip */
+.tip{position:fixed;z-index:60;pointer-events:none;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);box-shadow:var(--shadow);opacity:0;transition:opacity .12s ease;max-width:280px}
+.tip.show{opacity:1}
+
+@media (max-width:1080px){
+  .rules-grid{grid-template-columns:1fr}
+  .builder{position:static}
+  .api-grid{grid-template-columns:1fr}
+  .api-nav{position:static;flex-direction:row;flex-wrap:wrap}
+}
+@media (max-width:640px){
+  .cond-row{grid-template-columns:1fr}
+}
+
+/* footer */
+.foot{
+  padding:22px 0 30px;color:var(--faint);font-size:12px;
+  display:flex;gap:16px;flex-wrap:wrap;align-items:center;
+}
+.foot .sep{opacity:.5}
+
+@media (prefers-reduced-motion: reduce){
+  .ticker-track{animation:none;overflow-x:auto}
+  .live-dot{animation:none}
+  .feed-item.fresh{animation:none}
+  .fi-detail{transition:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= top bar ================= -->
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M12 12 L12 3"/><path d="M12 12 a6 6 0 0 1 6 6" opacity=".7"/>
+          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+          <path d="M4.9 4.9 a10 10 0 0 0 0 14.2 M19.1 4.9 a10 10 0 0 1 0 14.2" opacity=".45"/>
+        </svg>
+      </div>
+      <div class="brand-name"><span class="zh">漏讯</span> VulnWire</div>
+    </div>
+    <nav class="nav" aria-label="主导航">
+      <a href="#feed" data-view="feed">实时情报</a>
+      <a href="#poc" data-view="poc">POC 库</a>
+      <a href="#rules" data-view="rules">订阅规则</a>
+      <a href="#api" data-view="api">API 文档</a>
+    </nav>
+    <div class="top-right">
+      <span class="live-pill"><span class="live-dot"></span>LIVE</span>
+      <span class="clock mono" id="clock">--:--:--</span>
+      <span class="avatar" title="演示账户">XF</span>
+    </div>
+  </div>
+</header>
+
+<!-- ================= ticker ================= -->
+<div class="ticker" aria-label="最新情报快讯">
+  <div class="ticker-label">WIRE · 快讯</div>
+  <div class="ticker-track" id="ticker"></div>
+</div>
+
+<!-- ================= main ================= -->
+<main class="wrap">
+
+  <!-- ======== 视图 · 实时情报 ======== -->
+  <section class="view" id="view-feed">
+  <div class="main">
+
+  <!-- ======== 左：实时情报流 ======== -->
+  <section class="panel" aria-label="实时漏洞情报流">
+    <div class="panel-head">
+      <h2>实时情报流</h2>
+      <span class="eyebrow">Live Feed · CVE + POC</span>
+      <span class="spacer"></span>
+      <button class="stream-btn playing" id="streamBtn" aria-pressed="true">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+        <span id="streamBtnText">暂停接收</span>
+      </button>
+    </div>
+
+    <div class="filters">
+      <button class="sev-chip" data-sev="crit" aria-pressed="true" style="--sc:var(--crit)"><span class="sdot"></span>严重</button>
+      <button class="sev-chip" data-sev="high" aria-pressed="true" style="--sc:var(--high)"><span class="sdot"></span>高危</button>
+      <button class="sev-chip" data-sev="med"  aria-pressed="true" style="--sc:var(--med)"><span class="sdot"></span>中危</button>
+      <button class="sev-chip" data-sev="low"  aria-pressed="true" style="--sc:var(--low)"><span class="sdot"></span>低危</button>
+      <button class="poc-toggle" id="pocToggle" aria-pressed="false">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></svg>
+        仅看有 POC
+      </button>
+      <label class="search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.4-4.4"/></svg>
+        <input id="q" type="search" placeholder="搜索 CVE 编号 / 产品 / 关键词…">
+      </label>
+    </div>
+
+    <div class="feed" id="feed"></div>
+    <div class="feed-empty" id="feedEmpty" hidden>当前筛选条件下暂无情报</div>
+  </section>
+
+  <!-- ======== 右栏 ======== -->
+  <aside class="rail">
+
+    <!-- 今日态势 -->
+    <section class="panel" aria-label="今日态势">
+      <div class="panel-head"><h2>今日态势</h2><span class="eyebrow">24h</span></div>
+      <div class="stats">
+        <div class="stat">
+          <div class="s-label">今日新增</div>
+          <div class="s-val" id="statNew">156</div>
+          <svg viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 20 L10 18 L20 21 L30 15 L40 16 L50 11 L60 13 L70 8 L80 10 L90 5 L100 6 L100 26 L0 26 Z" fill="var(--accent-soft)"/>
+            <path d="M0 20 L10 18 L20 21 L30 15 L40 16 L50 11 L60 13 L70 8 L80 10 L90 5 L100 6" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+          </svg>
+        </div>
+        <div class="stat">
+          <div class="s-label">高危及以上</div>
+          <div class="s-val">41<span class="u">条</span></div>
+          <div class="s-delta up">▲ 12% 较昨日</div>
+        </div>
+        <div class="stat">
+          <div class="s-label">POC 已出</div>
+          <div class="s-val" id="statPoc">23<span class="u">条</span></div>
+          <div class="s-delta warn">▲ 8 条 / 6h</div>
+        </div>
+        <div class="stat">
+          <div class="s-label">在野利用</div>
+          <div class="s-val">6<span class="u">条</span></div>
+          <div class="s-delta warn">含 2 条 KEV 新增</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 威胁雷达 -->
+    <section class="panel" aria-label="威胁雷达">
+      <div class="panel-head"><h2>威胁雷达</h2><span class="eyebrow">Radar</span></div>
+      <div class="radar-box">
+        <canvas id="radar" width="316" height="316" role="img" aria-label="雷达图：以严重度标记近 24 小时新增漏洞"></canvas>
+        <div class="radar-legend">
+          <div class="rl-row" style="--sc:var(--crit)"><span class="rl-dot"></span>严重<b>5</b></div>
+          <div class="rl-row" style="--sc:var(--high)"><span class="rl-dot"></span>高危<b>18</b></div>
+          <div class="rl-row" style="--sc:var(--med)"><span class="rl-dot"></span>中危<b>27</b></div>
+          <div class="rl-row" style="--sc:var(--low)"><span class="rl-dot"></span>低危<b>9</b></div>
+        </div>
+      </div>
+      <p class="radar-note">光点为近 24h 新增漏洞，按严重度着色；距圆心越近，热度分越高（CVSS × EPSS × POC 增速）。</p>
+    </section>
+
+    <!-- POC 风向 -->
+    <section class="panel" aria-label="POC 风向">
+      <div class="panel-head"><h2>POC 风向</h2><span class="eyebrow">Sources</span></div>
+      <div class="src-list">
+        <div class="src-row">
+          <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-1-2.6c3.2-.4 6.5-1.6 6.5-7A5.4 5.4 0 0 0 20 4.8 5 5 0 0 0 19.9 1S18.7.6 16 2.5a13.4 13.4 0 0 0-7 0C6.3.6 5.1 1 5.1 1A5 5 0 0 0 5 4.8a5.4 5.4 0 0 0-1.5 3.7c0 5.4 3.3 6.6 6.4 7a3.4 3.4 0 0 0-1 2.6V21"/></svg></div>
+          <div><div class="src-name">GitHub 关键词监控</div><div class="src-desc">CVE-2026-\d+ · 代码/仓库/Release</div></div>
+          <div class="src-count"><b>+89</b><span>今日</span></div>
+        </div>
+        <div class="src-row">
+          <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l9 4.9v10.2L12 22l-9-4.9V6.9L12 2z"/><path d="M12 22V12M3 6.9l9 5.1 9-5.1"/></svg></div>
+          <div><div class="src-name">trickest/cve</div><div class="src-desc">POC 聚合仓库 · Release 监控</div></div>
+          <div class="src-count"><b>+37</b><span>今日</span></div>
+        </div>
+        <div class="src-row">
+          <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+          <div><div class="src-name">Exploit-DB / PacketStorm</div><div class="src-desc">提交记录 · git commit 监控</div></div>
+          <div class="src-count"><b>+12</b><span>今日</span></div>
+        </div>
+        <div class="src-row">
+          <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+          <div><div class="src-name">CISA KEV 目录</div><div class="src-desc">在野利用清单 · 增量同步</div></div>
+          <div class="src-count"><b>+6</b><span>本周</span></div>
+        </div>
+        <div class="src-row">
+          <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 9h4M7 13h8"/><path d="M17 18v3M7 18v3"/></svg></div>
+          <div><div class="src-name">厂商与安全厂商公告</div><div class="src-desc">MSRC / Atlassian / 奇安信 / 微步 RSS</div></div>
+          <div class="src-count"><b>+21</b><span>今日</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 告警规则 -->
+    <section class="panel" aria-label="订阅与告警">
+      <div class="panel-head"><h2>订阅与告警</h2><span class="eyebrow">Rules</span></div>
+      <div class="rule-list">
+        <div class="rule">
+          <div class="rule-r"><span class="rule-exp">CVSS ≥ 9.0 且 POC 出现</span><span class="switch" role="img" aria-label="已启用"></span></div>
+          <div class="rule-dest">
+            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.6c.1-.5-.4-.9-.8-.7L2.7 11.1c-.5.2-.5.9 0 1.1l4.6 1.5 1.7 5.4c.1.4.6.5.9.2l2.5-2.3 4.7 3.4c.3.2.8.1.9-.3l3.9-15.5zM8.5 13.6l9.2-5.9-7.2 6.7-.2 3-1.8-3.8z"/></svg>Telegram</span>
+            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>飞书</span>
+            <span class="rule-then">即时推送 · 含 POC 链接</span>
+          </div>
+        </div>
+        <div class="rule">
+          <div class="rule-r"><span class="rule-exp">关注产品命中：Confluence / Nacos / FortiGate</span><span class="switch" role="img" aria-label="已启用"></span></div>
+          <div class="rule-dest">
+            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5h-2v4H7v2h4v4h2v-4h4v-2h-4V7z"/></svg>钉钉</span>
+            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>邮件</span>
+            <span class="rule-then">命中关注产品即推</span>
+          </div>
+        </div>
+        <div class="rule">
+          <div class="rule-r"><span class="rule-exp">CISA KEV 新增条目</span><span class="switch off" role="img" aria-label="已停用"></span></div>
+          <div class="rule-dest">
+            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H7l-3 3V4z"/></svg>Webhook → n8n</span>
+            <span class="rule-then">进入工单流转</span>
+          </div>
+        </div>
+      </div>
+      <button class="new-rule">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        新建订阅规则
+      </button>
+    </section>
+
+  </aside>
+  </div>
+  </section>
+
+  <!-- ======== 视图 · POC 库 ======== -->
+  <section class="view" id="view-poc" aria-label="POC 库">
+    <div class="view-head">
+      <div>
+        <h1>POC 库</h1>
+        <p>去重后的公开 POC / EXP 元数据索引 · 只收录链接与验证状态，不托管代码</p>
+      </div>
+      <div class="vh-right"><span class="tag">更新于 1 分钟前</span></div>
+    </div>
+
+    <section class="panel">
+      <div class="filters">
+        <button class="sev-chip tchip" data-type="all" aria-pressed="true" style="--sc:var(--accent)">全部类型</button>
+        <button class="sev-chip tchip" data-type="rce" aria-pressed="false" style="--sc:var(--accent)">RCE</button>
+        <button class="sev-chip tchip" data-type="cmd" aria-pressed="false" style="--sc:var(--accent)">命令注入</button>
+        <button class="sev-chip tchip" data-type="sqli" aria-pressed="false" style="--sc:var(--accent)">SQL 注入</button>
+        <button class="sev-chip tchip" data-type="ssrf" aria-pressed="false" style="--sc:var(--accent)">SSRF</button>
+        <button class="sev-chip tchip" data-type="deser" aria-pressed="false" style="--sc:var(--accent)">反序列化</button>
+        <button class="sev-chip tchip" data-type="priv" aria-pressed="false" style="--sc:var(--accent)">权限绕过</button>
+        <button class="sev-chip tchip" data-type="escape" aria-pressed="false" style="--sc:var(--accent)">沙箱逃逸</button>
+        <button class="poc-toggle" id="vfToggle" aria-pressed="false">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
+          仅看已验证
+        </button>
+        <label class="search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.4-4.4"/></svg>
+          <input id="pocQ" type="search" placeholder="搜索 CVE / 产品 / 仓库名…">
+        </label>
+      </div>
+      <div class="sum-strip">
+        <span class="tag">今日入库 <b class="mono" style="color:var(--accent)">+23</b></span>
+        <span class="tag">本周 <b class="mono">+173</b></span>
+        <span class="tag">验证通过率 <b class="mono">74%</b></span>
+        <span class="tag">覆盖产品 <b class="mono">58</b></span>
+        <span class="tag">去重规则：CVE 编号 + 仓库 URL 指纹</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>CVE / 目标</th><th>类型</th><th>语言</th><th>验证状态</th><th>★ Stars</th><th>首次发现</th><th>来源</th><th></th></tr></thead>
+          <tbody id="pocBody"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        共 1,286 条 · 第 1 / 64 页
+        <button class="link-btn" disabled>上一页</button>
+        <button class="link-btn">下一页</button>
+      </div>
+    </section>
+  </section>
+
+  <!-- ======== 视图 · 订阅规则 ======== -->
+  <section class="view" id="view-rules" aria-label="订阅规则">
+    <div class="view-head">
+      <div>
+        <h1>订阅规则</h1>
+        <p>条件命中即推送 · 支持多通道组合、免打扰与聚合策略</p>
+      </div>
+      <div class="vh-right"><button class="btn-primary" data-goto-builder="1" style="flex:none">＋ 新建规则</button></div>
+    </div>
+
+    <div class="rules-grid">
+      <div>
+        <section class="panel rcard">
+          <div class="rc-head">
+            <span class="rc-name">核心产品高危告警</span>
+            <span class="switch" role="img" aria-label="已启用"></span>
+            <span class="rc-when">最近触发 12 分钟前 · 本周 34 次</span>
+          </div>
+          <div class="rc-conds">
+            <span class="tag">产品 ∈ 关注清单</span><span class="tag">CVSS ≥ 7.0</span><span class="tag">POC = 已公开</span>
+          </div>
+          <div class="rc-foot">
+            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5h-2v4H7v2h4v4h2v-4h4v-2h-4V7z"/></svg>钉钉</span>
+            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>邮件</span>
+            <span class="rule-then">逐条即时 · 含处置建议</span>
+          </div>
+        </section>
+
+        <section class="panel rcard">
+          <div class="rc-head">
+            <span class="rc-name">KEV 在野利用即时推送</span>
+            <span class="switch" role="img" aria-label="已启用"></span>
+            <span class="rc-when">最近触发 1 小时前 · 本周 9 次</span>
+          </div>
+          <div class="rc-conds">
+            <span class="tag">CISA KEV = 新增条目</span><span class="tag">免打扰例外</span>
+          </div>
+          <div class="rc-foot">
+            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.6c.1-.5-.4-.9-.8-.7L2.7 11.1c-.5.2-.5.9 0 1.1l4.6 1.5 1.7 5.4c.1.4.6.5.9.2l2.5-2.3 4.7 3.4c.3.2.8.1.9-.3l3.9-15.5zM8.5 13.6l9.2-5.9-7.2 6.7-.2 3-1.8-3.8z"/></svg>Telegram</span>
+            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>飞书</span>
+            <span class="rule-then">最高优先级 · 电话轮值模式</span>
+          </div>
+        </section>
+
+        <section class="panel rcard">
+          <div class="rc-head">
+            <span class="rc-name">批量武器化监测</span>
+            <span class="switch" role="img" aria-label="已启用"></span>
+            <span class="rc-when">最近触发 昨天 · 本周 5 次</span>
+          </div>
+          <div class="rc-conds">
+            <span class="tag">同 CVE POC 仓库 ≥ 3</span><span class="tag">24h Star 增速 ≥ 100</span>
+          </div>
+          <div class="rc-foot">
+            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H7l-3 3V4z"/></svg>Webhook → n8n</span>
+            <span class="rule-then">进入工单流转</span>
+          </div>
+        </section>
+
+        <section class="panel rcard">
+          <div class="rc-head">
+            <span class="rc-name">国内组件专项（通达 / 致远 / 蓝凌）</span>
+            <span class="switch" role="img" aria-label="已启用"></span>
+            <span class="rc-when">最近触发 3 天前 · 本周 12 次</span>
+          </div>
+          <div class="rc-conds">
+            <span class="tag">产品关键词 命中</span><span class="tag">来源 = CNVD / CNNVD</span>
+          </div>
+          <div class="rc-foot">
+            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5h-2v4H7v2h4v4h2v-4h4v-2h-4V7z"/></svg>钉钉</span>
+            <span class="rule-then">工作时间聚合推送</span>
+          </div>
+        </section>
+
+        <section class="panel rcard">
+          <div class="rc-head">
+            <span class="rc-name">每日情报摘要</span>
+            <span class="switch off" role="img" aria-label="已停用"></span>
+            <span class="rc-when">今早 09:00 已发送 · 已停用</span>
+          </div>
+          <div class="rc-conds">
+            <span class="tag">时间 = 每日 09:00</span><span class="tag">聚合 24h 全量</span>
+          </div>
+          <div class="rc-foot">
+            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>邮件</span>
+            <span class="rule-then">含 Top10 与关注产品命中清单</span>
+          </div>
+        </section>
+      </div>
+
+      <aside class="panel builder" aria-label="新建规则">
+        <div class="panel-head"><h2>新建规则</h2><span class="eyebrow">Builder</span></div>
+        <div class="b-in">
+          <div class="b-label">规则名称</div>
+          <input class="finput" value="高危漏洞即时推送">
+          <div class="b-label">满足以下全部条件</div>
+          <div class="cond-row">
+            <select class="fsel"><option>严重度</option></select>
+            <select class="fsel"><option>属于</option></select>
+            <select class="fsel"><option>严重 / 高危</option></select>
+          </div>
+          <div class="cond-row">
+            <select class="fsel"><option>CVSS 分数</option></select>
+            <select class="fsel"><option>≥</option></select>
+            <input class="finput mono" value="9.0">
+          </div>
+          <div class="cond-row">
+            <select class="fsel"><option>产品关键词</option></select>
+            <select class="fsel"><option>包含</option></select>
+            <input class="finput" value="confluence">
+          </div>
+          <button class="add-cond">＋ 添加条件</button>
+          <div class="b-label">推送通道</div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap">
+            <button class="chan" aria-pressed="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.6c.1-.5-.4-.9-.8-.7L2.7 11.1c-.5.2-.5.9 0 1.1l4.6 1.5 1.7 5.4c.1.4.6.5.9.2l2.5-2.3 4.7 3.4c.3.2.8.1.9-.3l3.9-15.5zM8.5 13.6l9.2-5.9-7.2 6.7-.2 3-1.8-3.8z"/></svg>Telegram</button>
+            <button class="chan" aria-pressed="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>飞书</button>
+            <button class="chan" aria-pressed="false"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5h-2v4H7v2h4v4h2v-4h4v-2h-4V7z"/></svg>钉钉</button>
+            <button class="chan" aria-pressed="false"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 6h2v2h-2zm0 4h2v6h-2z"/></svg>企业微信</button>
+            <button class="chan" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>邮件</button>
+            <button class="chan" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H7l-3 3V4z"/></svg>Webhook</button>
+          </div>
+          <div class="b-label">高级选项</div>
+          <div class="adv-row">免打扰时段 22:00 – 08:00<span class="switch off" role="img" aria-label="已停用"></span></div>
+          <div class="adv-row">推送聚合
+            <select class="fsel" style="width:auto;margin-left:auto"><option>逐条即时</option><option>5 分钟聚合</option><option>小时摘要</option></select>
+          </div>
+          <div class="adv-row">命中关注产品时升级高优先<span class="switch" role="img" aria-label="已启用"></span></div>
+          <div class="btn-row">
+            <button class="btn-ghost">测试推送</button>
+            <button class="btn-primary">保存规则</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head"><h2>最近告警记录</h2><span class="eyebrow">Delivery Log</span></div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>时间</th><th>规则</th><th>命中事件</th><th>通道</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr><td class="tc">12:36</td><td>核心产品高危告警</td><td><span class="tc">CVE-2026-29907</span> Nacos 未授权 · 命中关注产品「Nacos」</td><td>钉钉 + 邮件</td><td><span class="st ok">已送达</span></td></tr>
+            <tr><td class="tc">12:02</td><td>KEV 在野利用即时推送</td><td><span class="tc">CVE-2026-28843</span> Ivanti Connect Secure</td><td>Telegram</td><td><span class="st ok">已送达</span></td></tr>
+            <tr><td class="tc">11:47</td><td>核心产品高危告警</td><td><span class="tc">CVE-2026-31287</span> Confluence OGNL 注入</td><td>钉钉 + 邮件</td><td><span class="st ok">已送达</span></td></tr>
+            <tr><td class="tc">10:15</td><td>批量武器化监测</td><td><span class="tc">CVE-2026-31287</span> POC 仓库 +6 / 24h Star +1.2k</td><td>Webhook → n8n</td><td><span class="st ok">已送达</span></td></tr>
+            <tr><td class="tc">09:00</td><td>每日情报摘要</td><td>昨日 156 条 · 高危及以上 41 · POC 23</td><td>邮件</td><td><span class="st ok">已送达</span></td></tr>
+            <tr><td class="tc">08:52</td><td>国内组件专项</td><td>CNVD 通用型漏洞 3 条（通达 / 致远）</td><td>钉钉</td><td><span class="st wait">已重试 1 次</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <!-- ======== 视图 · API 文档 ======== -->
+  <section class="view" id="view-api" aria-label="API 文档">
+    <div class="view-head">
+      <div>
+        <h1>API 文档</h1>
+        <p>REST + SSE · 时间均为 UTC+8 · Base URL <span class="mono">https://api.vulnwire.example.com</span></p>
+      </div>
+      <div class="vh-right"><span class="tag">v1 · 稳定</span></div>
+    </div>
+
+    <div class="api-grid">
+      <nav class="api-nav" aria-label="文档目录">
+        <a href="#" data-scroll="api-auth">快速开始与认证</a>
+        <a href="#" data-scroll="api-stream">实时流（SSE）</a>
+        <a href="#" data-scroll="api-vulns">情报查询</a>
+        <a href="#" data-scroll="api-pocs">POC 查询</a>
+        <a href="#" data-scroll="api-subs">订阅管理</a>
+        <a href="#" data-scroll="api-hook">Webhook 回调</a>
+        <a href="#" data-scroll="api-limit">限流与错误码</a>
+      </nav>
+
+      <div>
+        <section class="api-sec" id="api-auth">
+          <h3>快速开始与认证</h3>
+          <p>所有请求使用 Bearer Token 认证。Token 在「设置 → API」中生成，可按用途开多个、独立吊销。以下示例使用只读演示 Token。</p>
+          <div class="token-card">
+            <span class="mono" style="font-size:13px">vw_live_9f2e••••••••••••3ab7</span>
+            <span class="tag">只读 · 2026-11-30 到期</span>
+            <span style="flex:1"></span>
+            <button class="cp-btn" data-copy="vw_live_9f2e0000000003ab7">复制</button>
+            <button class="link-btn">重置</button>
+          </div>
+          <div class="code"><button class="cp-btn">复制</button><pre><span class="c"># 拉取当前「严重 + 已有 POC」的情报</span>
+curl -N <span class="k">"https://api.vulnwire.example.com/api/v1/feed?severity=critical&amp;poc=true"</span> \
+  -H <span class="k">"Authorization: Bearer vw_live_9f2e…3ab7"</span></pre></div>
+        </section>
+
+        <section class="api-sec" id="api-stream">
+          <h3><span class="ep get">GET</span> 实时流 <span class="mono" style="font-size:13px;color:var(--muted)">/api/v1/stream</span></h3>
+          <p>SSE 长连接，事件类型：<span class="mono">intel</span>（新情报）、<span class="mono">poc</span>（POC 入库）、<span class="mono">kev</span>（KEV 新增）。服务端每 25 秒发送一次注释心跳；断线请用 <span class="mono">Last-Event-ID</span> 续传。</p>
+          <div class="code"><button class="cp-btn">复制</button><pre>event: intel
+data: {<span class="k">"id"</span>:"CVE-2026-31287", <span class="k">"severity"</span>:"critical", <span class="k">"cvss"</span>:9.8,
+       <span class="k">"poc"</span>:"exploited", <span class="k">"matched_assets"</span>:["Confluence 生产集群"],
+       <span class="k">"title"</span>:"Atlassian Confluence — OGNL 注入 RCE"}
+
+: ping (every 25s)</pre></div>
+        </section>
+
+        <section class="api-sec" id="api-vulns">
+          <h3><span class="ep get">GET</span> 情报查询 <span class="mono" style="font-size:13px;color:var(--muted)">/api/v1/vulns</span></h3>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th>参数</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td class="tc">severity</td><td>critical | high | medium | low，逗号分隔多选</td></tr>
+                <tr><td class="tc">q</td><td>关键词（CVE 编号 / 产品 / 标题全文）</td></tr>
+                <tr><td class="tc">poc / kev</td><td>true 时仅返回已有 POC / 在野利用条目</td></tr>
+                <tr><td class="tc">page · size</td><td>分页，size 上限 100</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="code"><button class="cp-btn">复制</button><pre>{<span class="k">"total"</span>:156, <span class="k">"items"</span>:[{<span class="k">"id"</span>:"CVE-2026-31287", <span class="k">"cvss"</span>:9.8,
+  <span class="k">"epss"</span>:0.94, <span class="k">"kev"</span>:true, <span class="k">"pocs"</span>:[{<span class="k">"repo"</span>:"…/confluence-rce-auto",
+  <span class="k">"stars"</span>:2100, <span class="k">"verified"</span>:true}], …}]}</pre></div>
+        </section>
+
+        <section class="api-sec" id="api-pocs">
+          <h3><span class="ep get">GET</span> POC 查询 <span class="mono" style="font-size:13px;color:var(--muted)">/api/v1/pocs</span></h3>
+          <p>仅返回元数据与跳转链接，不托管代码。参数：<span class="mono">q</span>、<span class="mono">type</span>（rce / sqli / ssrf…）、<span class="mono">verified=true</span>、<span class="mono">since</span>（ISO 时间）。</p>
+          <div class="code"><button class="cp-btn">复制</button><pre>curl <span class="k">"https://api.vulnwire.example.com/api/v1/pocs?q=confluence&amp;verified=true"</span> \
+  -H <span class="k">"Authorization: Bearer vw_live_9f2e…3ab7"</span></pre></div>
+        </section>
+
+        <section class="api-sec" id="api-subs">
+          <h3><span class="ep post">POST</span> 订阅管理 <span class="mono" style="font-size:13px;color:var(--muted)">/api/v1/subscriptions</span></h3>
+          <p>创建订阅；<span class="mono">DELETE /api/v1/subscriptions/&lt;id&gt;</span> 删除。条件结构与页面「规则构建器」一致。</p>
+          <div class="code"><button class="cp-btn">复制</button><pre>curl -X POST <span class="k">"https://api.vulnwire.example.com/api/v1/subscriptions"</span> \
+  -H <span class="k">"Authorization: Bearer vw_live_9f2e…3ab7"</span> \
+  -d '{<span class="k">"name"</span>:"核心产品高危",
+       <span class="k">"conditions"</span>:[{"<span class="k">field"</span>:"cvss","<span class="k">op"</span>:"gte","<span class="k">value"</span>:7.0}],
+       <span class="k">"channels"</span>:["dingtalk","email"]}'</pre></div>
+        </section>
+
+        <section class="api-sec" id="api-hook">
+          <h3>Webhook 回调</h3>
+          <p>推送失败按 1 / 5 / 15 / 60 分钟指数退避重试最多 5 次。每条请求带签名头，校验方式：HMAC-SHA256（raw body, webhook secret）。</p>
+          <div class="code"><button class="cp-btn">复制</button><pre>X-VulnWire-Signature: sha256=5f3a…c91d
+
+{<span class="k">"event"</span>:"rule.matched", <span class="k">"rule"</span>:"核心产品高危告警",
+ <span class="k">"cve"</span>:"CVE-2026-31287", <span class="k">"delivered_at"</span>:"2026-08-24T11:47:03+08:00"}</pre></div>
+        </section>
+
+        <section class="api-sec" id="api-limit">
+          <h3>限流与错误码</h3>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th>套餐</th><th>REST 请求</th><th>SSE 并发连接</th></tr></thead>
+              <tbody>
+                <tr><td>免费</td><td class="tc">60 / 分钟</td><td class="tc">1</td></tr>
+                <tr><td>专业（私有部署）</td><td class="tc">600 / 分钟</td><td class="tc">5</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th>错误码</th><th>含义</th></tr></thead>
+              <tbody>
+                <tr><td class="tc">401</td><td>Token 缺失 / 失效</td></tr>
+                <tr><td class="tc">403</td><td>权限不足（如只读 Token 调写接口）</td></tr>
+                <tr><td class="tc">429</td><td>触发限流，按 Retry-After 头退避</td></tr>
+                <tr><td class="tc">5xx</td><td>服务异常，可安全重试（幂等）</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap foot">
+  <span>漏讯 VulnWire · 实时漏洞与 POC 情报站</span>
+  <span class="sep">|</span>
+  <span>设计概念稿 — 页面中的漏洞与数据均为演示模拟，非真实情报</span>
+</footer>
+
+<script>
+/* 预览参数：?theme=dark / ?theme=light 强制指定主题 */
+(() => {
+  const t = new URLSearchParams(location.search).get('theme');
+  if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+})();
+
+/* ================= 数据（演示模拟） ================= */
+const SEV = {
+  crit:{label:'严重', c:'var(--crit)'},
+  high:{label:'高危', c:'var(--high)'},
+  med :{label:'中危', c:'var(--med)'},
+  low :{label:'低危', c:'var(--low)'}
+};
+const POC = {
+  exploited:{label:'在野利用'},
+  poc:{label:'POC 已公开'},
+  verify:{label:'验证 POC'},
+  none:{label:'暂无 POC'}
+};
+
+const ITEMS = [
+ {id:'CVE-2026-31287', sev:'crit', cvss:9.8, poc:'exploited', src:'CISA KEV', time:'4 分钟前',
+  title:'Atlassian Confluence Data Center — OGNL 注入致未授权远程代码执行',
+  tags:['Confluence','RCE','OGNL 注入'],
+  ai:'已列入 CISA 在野利用清单。互联网暴露实例约 4.1 万，认证前即可触发，建议立即升级至 8.5.x 修复版。',
+  ver:'8.0.0 – 8.5.3',
+  pocs:[{name:'confluence-rce-auto', lang:'Python · 一键化', extra:'3 天前', star:'2.1k'},
+        {name:'CVE-2026-31287-detect', lang:'Nuclei 模板', extra:'1 天前', star:'486'}]},
+ {id:'CVE-2026-29814', sev:'crit', cvss:9.6, poc:'poc', src:'GitHub', time:'11 分钟前',
+  title:'Fortinet FortiManager — 越界写入可致设备接管',
+  tags:['FortiManager','内存破坏'],
+  ai:'管理面漏洞，攻击成功可直接下发恶意配置至被管设备。POC 已公开但利用条件较苛刻，48 小时内为关注窗口。',
+  ver:'7.0.x – 7.6.x',
+  pocs:[{name:'fmt-oob-write-poc', lang:'Go', extra:'6 小时前', star:'312'}]},
+ {id:'CVE-2026-30101', sev:'high', cvss:8.1, poc:'poc', src:'NVD', time:'26 分钟前',
+  title:'Apache Tomcat — partial PUT 开启时的远程代码执行',
+  tags:['Tomcat','RCE','PUT'],
+  ai:'仅影响开启 readonly=false 的非常规配置，默认配置不受影响。已检测到公开利用脚本。',
+  ver:'11.0.0-M1 – 11.0.2',
+  pocs:[{name:'tomcat-put-rce', lang:'Python', extra:'昨天', star:'877'}]},
+ {id:'CVE-2026-28843', sev:'crit', cvss:9.1, poc:'none', src:'厂商公告', time:'38 分钟前',
+  title:'Ivanti Connect Secure — 服务端请求伪造可绕过认证',
+  tags:['Ivanti','SSRF','VPN'],
+  ai:'边界设备直连公网，建议优先处置。暂无公开 POC，但该产品历史漏洞常在披露后一周内出现武器化利用。',
+  ver:'22.4R1 – 22.7R2', pocs:[]},
+ {id:'CVE-2026-31052', sev:'high', cvss:7.5, poc:'verify', src:'GitHub', time:'52 分钟前',
+  title:'Jenkins — 任意文件读取导致凭据泄露',
+  tags:['Jenkins','文件读取'],
+  ai:'需已认证的低权限账户，可读取加密密钥文件后离线破解。验证 POC 已出现，建议轮换 Jenkins 凭据。',
+  ver:'2.440 – 2.485',
+  pocs:[{name:'jenkins-fileread', lang:'Java', extra:'2 天前', star:'158'}]},
+ {id:'CVE-2026-30519', sev:'high', cvss:8.8, poc:'exploited', src:'微软通告', time:'2 小时前',
+  title:'Windows OLE — 邮件预览窗格远程代码执行',
+  tags:['Windows','OLE','钓鱼'],
+  ai:'Outlook 预览窗格即可触发，无需用户点击。已确认针对性利用，8 月补丁日最高优先级。',
+  ver:'Windows 10/11 全线', pocs:[]},
+ {id:'CVE-2026-29907', sev:'crit', cvss:9.0, poc:'poc', src:'GitHub', time:'2 小时前',
+  title:'Nacos — 集群间通信未授权访问致配置中心接管',
+  tags:['Nacos','未授权','配置泄露'],
+  ai:'默认 7848 端口未鉴权，可注入恶意配置进而影响下游全部服务。国内互联网暴露面大，POC 批量验证脚本已流传。',
+  ver:'2.2.x – 2.4.x',
+  pocs:[{name:'nacos-cluster-bypass', lang:'Python · 批量', extra:'1 天前', star:'1.4k'}]},
+ {id:'CVE-2026-28156', sev:'high', cvss:8.5, poc:'poc', src:'Wordfence', time:'3 小时前',
+  title:'WordPress 插件 Essential Blocks — 权限提升至管理员',
+  tags:['WordPress','插件','提权'],
+  ai:'活跃安装量 10 万+。订阅用户可被提权，建议站点排查插件版本。',
+  ver:'≤ 4.5.3',
+  pocs:[{name:'eb-priv-esc', lang:'PHP', extra:'3 天前', star:'97'}]},
+ {id:'CVE-2026-27688', sev:'high', cvss:8.6, poc:'verify', src:'GitHub', time:'4 小时前',
+  title:'Docker Engine — runc 竞态条件容器逃逸',
+  tags:['Docker','容器逃逸'],
+  ai:'需容器内执行恶意镜像，CI 共享构建机为主要风险场景。验证 POC 已公开。',
+  ver:'≤ 27.5.1',
+  pocs:[{name:'runc-race-escape', lang:'C · 概念验证', extra:'2 天前', star:'603'}]},
+ {id:'CVE-2026-29331', sev:'med', cvss:5.9, poc:'none', src:'NVD', time:'5 小时前',
+  title:'Spring Framework — WebMvc.fn 路径遍历致信息泄露',
+  tags:['Spring','路径遍历'],
+  ai:'仅影响使用 RouterFunctions 的应用，常规注解路由不受影响。',
+  ver:'6.0 – 6.2.8', pocs:[]},
+ {id:'CVE-2026-26905', sev:'low', cvss:3.1, poc:'none', src:'NVD', time:'6 小时前',
+  title:'Zabbix 前端 — 反射型 XSS（需特定主题）',
+  tags:['Zabbix','XSS'],
+  ai:'影响面有限，随例行维护窗口处理即可。',
+  ver:'6.0 – 6.4', pocs:[]},
+];
+
+/* 实时推送队列（循环注入演示） */
+const QUEUE = [
+ {id:'CVE-2026-31590', sev:'crit', cvss:9.9, poc:'poc', src:'GitHub',
+  title:'Veeam Backup & Replication — 反序列化远程代码执行',
+  tags:['Veeam','反序列化','备份系统'],
+  ai:'备份基础设施被攻破意味着勒索软件的最后一道防线失守，建议立即升级并排查异常恢复任务。',
+  pocs:[{name:'veeam-deser-rce', lang:'C#', extra:'刚刚', star:'44'}]},
+ {id:'CVE-2026-30044', sev:'crit', cvss:9.2, poc:'poc', src:'GitHub',
+  title:'Palo Alto PAN-OS — 管理界面命令注入',
+  tags:['PAN-OS','命令注入','防火墙'],
+  ai:'管理口暴露即高危，建议确认管理面仅内网可达，并升级至热修复版本。',
+  pocs:[{name:'panos-mgmt-inject', lang:'Python', extra:'刚刚', star:'29'}]},
+ {id:'CVE-2026-31221', sev:'high', cvss:8.7, poc:'verify', src:'GitHub',
+  title:'GitLab CE/EE — SSRF 窃取 CI Runner 凭据',
+  tags:['GitLab','SSRF','CI'],
+  ai:'可借 CI 权限横向至源码仓库与制品库，私有化部署重点排查。',
+  pocs:[{name:'gitlab-ci-ssrf', lang:'Ruby', extra:'刚刚', star:'17'}]},
+ {id:'CVE-2026-29999', sev:'crit', cvss:9.4, poc:'poc', src:'CNVD',
+  title:'通达 OA — 任意文件上传致远程代码执行',
+  tags:['通达 OA','文件上传'],
+  ai:'国内政企部署量大，历史漏洞利用链成熟，建议按厂商补丁立即处置。',
+  pocs:[{name:'tongda-upload', lang:'Python · 批量', extra:'刚刚', star:'63'}]},
+ {id:'CVE-2026-30712', sev:'med', cvss:6.5, poc:'none', src:'NVD',
+  title:'Git — clone 时符号链接路径遍历',
+  tags:['Git','客户端'],
+  ai:'克隆恶意仓库才可触发，开发环境默认配置基本免疫。',
+  pocs:[]},
+ {id:'CVE-2026-31345', sev:'med', cvss:6.8, poc:'none', src:'厂商公告',
+  title:'Zimbra — 存储型 XSS 可劫持管理员会话',
+  tags:['Zimbra','XSS','邮箱'],
+  ai:'邮件正文即载体，邮件网关侧建议先行加规则拦截。',
+  pocs:[]},
+];
+
+/* ================= 渲染 ================= */
+const POC_ICON = {
+  exploited:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>',
+  poc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></svg>',
+  verify:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12.5l5 5L20 6.5"/></svg>',
+  none:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12h14"/></svg>'
+};
+
+function itemEl(it, fresh){
+  const el = document.createElement('article');
+  el.className = 'feed-item' + (fresh ? ' fresh' : '');
+  el.style.setProperty('--sev', SEV[it.sev].c);
+  el.dataset.sev = it.sev;
+  el.dataset.poc = it.poc;
+  el.dataset.q = (it.id + ' ' + it.title + ' ' + it.tags.join(' ')).toLowerCase();
+  const pocRows = (it.pocs||[]).map(p =>
+    `<div class="d-poc"><b class="mono">${p.name}</b><span class="lang">${p.lang}</span><span class="lang">${p.extra}</span><span class="stars">★ ${p.star}</span></div>`
+  ).join('') || '<div class="d-row">暂无公开 POC — 出现后将自动推送并标记</div>';
+  el.innerHTML = `
+    <div class="fi-top">
+      <span class="fi-id">${it.id}</span>
+      <span class="fi-sev">${SEV[it.sev].label}</span>
+      <span class="fi-cvss">CVSS ${it.cvss.toFixed(1)}</span>
+      <span class="fi-meta"><span class="fi-src">${it.src}</span><span class="mono">${it.time || '刚刚'}</span></span>
+    </div>
+    <h3 class="fi-title">${it.title}</h3>
+    <div class="fi-tags">
+      <span class="poc-badge ${it.poc}">${POC_ICON[it.poc]}${POC[it.poc].label}</span>
+      ${it.tags.map(t => `<span class="tag">${t}</span>`).join('')}
+    </div>
+    <p class="fi-ai"><span class="ai-tag">AI</span>${it.ai}</p>
+    <div class="fi-detail"><div><div class="detail-in">
+      <div class="d-row">影响版本：<b class="mono">${it.ver || '详见公告'}</b></div>
+      ${pocRows}
+      <div class="d-row">参考：<a href="#" onclick="return false">NVD 条目</a> · <a href="#" onclick="return false">厂商公告</a> · <a href="#" onclick="return false">加入关注清单</a></div>
+    </div></div></div>`;
+  el.addEventListener('click', e => {
+    if (e.target.closest('a')) return;
+    el.classList.toggle('open');
+  });
+  return el;
+}
+
+const feed = document.getElementById('feed');
+ITEMS.forEach(it => feed.appendChild(itemEl(it, false)));
+
+/* ticker */
+const ticker = document.getElementById('ticker');
+const tkHTML = ITEMS.slice(0, 9).map(it =>
+  `<span><b class="mono">${it.id}</b> · ${it.title.split('—')[0].trim()} · <span class="tk-sev" style="color:${SEV[it.sev].c}">${SEV[it.sev].label}</span></span>`
+).join('');
+ticker.innerHTML = tkHTML + tkHTML;
+
+/* ================= 筛选 ================= */
+const state = {sevs:new Set(['crit','high','med','low']), pocOnly:false, q:''};
+function applyFilters(){
+  let visible = 0;
+  feed.querySelectorAll('.feed-item').forEach(el => {
+    const okSev = state.sevs.has(el.dataset.sev);
+    const okPoc = !state.pocOnly || el.dataset.poc !== 'none';
+    const okQ = !state.q || el.dataset.q.includes(state.q);
+    const show = okSev && okPoc && okQ;
+    el.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  document.getElementById('feedEmpty').hidden = visible > 0;
+}
+document.querySelectorAll('.sev-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const s = btn.dataset.sev;
+    const on = btn.getAttribute('aria-pressed') === 'true';
+    btn.setAttribute('aria-pressed', String(!on));
+    on ? state.sevs.delete(s) : state.sevs.add(s);
+    applyFilters();
+  });
+});
+document.getElementById('pocToggle').addEventListener('click', function(){
+  const on = this.getAttribute('aria-pressed') === 'true';
+  this.setAttribute('aria-pressed', String(!on));
+  state.pocOnly = !on;
+  applyFilters();
+});
+document.getElementById('q').addEventListener('input', function(){
+  state.q = this.value.trim().toLowerCase();
+  applyFilters();
+});
+
+/* ================= 实时注入 ================= */
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let qi = 0, playing = true, statNew = 156, statPoc = 23;
+const streamBtn = document.getElementById('streamBtn');
+streamBtn.addEventListener('click', () => {
+  playing = !playing;
+  streamBtn.setAttribute('aria-pressed', String(playing));
+  streamBtn.classList.toggle('playing', playing);
+  document.getElementById('streamBtnText').textContent = playing ? '暂停接收' : '恢复接收';
+  document.querySelector('.live-pill').style.opacity = playing ? '' : '.35';
+});
+function pushItem(){
+  if (!playing) return;
+  const it = QUEUE[qi % QUEUE.length]; qi++;
+  it.time = '刚刚';
+  feed.prepend(itemEl(it, true));
+  while (feed.children.length > 14) feed.lastChild.remove();
+  statNew++;
+  document.getElementById('statNew').textContent = statNew;
+  if (it.poc === 'poc' || it.poc === 'exploited') {
+    statPoc++;
+    document.getElementById('statPoc').innerHTML = statPoc + '<span class="u">条</span>';
+  }
+  applyFilters();
+}
+if (!reduced) setInterval(pushItem, 5200);
+
+/* ================= 时钟 ================= */
+function tick(){
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  document.getElementById('clock').textContent =
+    `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} UTC+8`;
+}
+tick(); setInterval(tick, 1000);
+
+/* ================= 视图路由 ================= */
+const VIEWS = ['feed','poc','rules','api'];
+const navLinks = document.querySelectorAll('.nav a');
+function setView(v){
+  if (!VIEWS.includes(v)) v = 'feed';
+  VIEWS.forEach(x => document.getElementById('view-' + x).classList.toggle('active', x === v));
+  navLinks.forEach(a => a.classList.toggle('on', a.dataset.view === v));
+  if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v);
+}
+navLinks.forEach(a => a.addEventListener('click', e => {
+  e.preventDefault(); setView(a.dataset.view); window.scrollTo({top:0});
+}));
+window.addEventListener('hashchange', () => {
+  const v = location.hash.slice(1);
+  if (VIEWS.includes(v)) setView(v);
+});
+setView(location.hash.slice(1));
+/* API 文档目录锚点平滑滚动 */
+document.querySelectorAll('[data-scroll]').forEach(a => a.addEventListener('click', e => {
+  e.preventDefault();
+  const t = document.getElementById(a.dataset.scroll);
+  if (t) t.scrollIntoView({behavior: reduced ? 'auto' : 'smooth'});
+}));
+
+/* ================= 全局 tooltip ================= */
+const tipEl = document.createElement('div');
+tipEl.className = 'tip'; tipEl.setAttribute('aria-hidden','true');
+document.body.appendChild(tipEl);
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if (t){ tipEl.textContent = t.dataset.tip; tipEl.classList.add('show'); }
+});
+document.addEventListener('mouseout', e => {
+  if (e.target.closest && e.target.closest('[data-tip]')) tipEl.classList.remove('show');
+});
+document.addEventListener('mousemove', e => {
+  if (!tipEl.classList.contains('show')) return;
+  tipEl.style.left = Math.min(e.clientX + 14, innerWidth - tipEl.offsetWidth - 10) + 'px';
+  tipEl.style.top  = Math.min(e.clientY + 16, innerHeight - tipEl.offsetHeight - 10) + 'px';
+});
+
+
+/* ================= POC 库 ================= */
+const PTYPES = {rce:'RCE', cmd:'命令注入', sqli:'SQL 注入', ssrf:'SSRF', deser:'反序列化',
+                priv:'权限绕过', escape:'沙箱逃逸', leak:'信息泄露', mem:'内存破坏'};
+const PST = {wild:['在野利用','wild'], ok:['已验证','ok'], wait:['待验证','wait']};
+const POCS = [
+  {id:'CVE-2026-31287', sev:'crit', repo:'confluence-rce-auto', prod:'Confluence OGNL 注入 RCE', type:'rce',    lang:'Python · 一键化', st:'wild', star:'2.1k', seen:'3 天前', src:'GitHub'},
+  {id:'CVE-2026-29907', sev:'crit', repo:'nacos-cluster-bypass', prod:'Nacos 集群未授权访问',   type:'priv',   lang:'Python · 批量',  st:'ok',   star:'1.4k', seen:'1 天前', src:'GitHub'},
+  {id:'CVE-2026-30101', sev:'high', repo:'tomcat-put-rce',      prod:'Tomcat partial PUT RCE', type:'rce',    lang:'Python',          st:'ok',   star:'877',  seen:'昨天',  src:'Exploit-DB'},
+  {id:'CVE-2026-27688', sev:'high', repo:'runc-race-escape',    prod:'Docker runc 竞态逃逸',   type:'escape', lang:'C',              st:'wait', star:'603',  seen:'2 天前', src:'GitHub'},
+  {id:'CVE-2026-29814', sev:'crit', repo:'fmt-oob-write-poc',   prod:'FortiManager 越界写入',  type:'mem',    lang:'Go',              st:'wait', star:'312',  seen:'6 小时前', src:'GitHub'},
+  {id:'CVE-2026-31188', sev:'high', repo:'v8-type-confuse',     prod:'Chrome V8 类型混淆',     type:'rce',    lang:'C++',             st:'wait', star:'205',  seen:'2 天前', src:'GitHub'},
+  {id:'CVE-2026-31052', sev:'high', repo:'jenkins-fileread',    prod:'Jenkins 任意文件读取',   type:'leak',   lang:'Java',            st:'ok',   star:'158',  seen:'2 天前', src:'GitHub'},
+  {id:'CVE-2026-28156', sev:'high', repo:'eb-priv-esc',         prod:'WordPress EB 提权',      type:'priv',   lang:'PHP',             st:'ok',   star:'97',   seen:'3 天前', src:'Wordfence'},
+  {id:'CVE-2026-29654', sev:'high', repo:'zhiyuan-sqli',        prod:'致远 OA SQL 注入',       type:'sqli',   lang:'Java',            st:'ok',   star:'88',   seen:'4 天前', src:'CNVD'},
+  {id:'CVE-2026-29999', sev:'crit', repo:'tongda-upload',       prod:'通达 OA 文件上传 RCE',   type:'rce',    lang:'Python · 批量',  st:'ok',   star:'63',   seen:'5 天前', src:'CNVD'},
+  {id:'CVE-2026-31590', sev:'crit', repo:'veeam-deser-rce',     prod:'Veeam 反序列化 RCE',     type:'deser',  lang:'C#',              st:'wait', star:'44',   seen:'6 天前', src:'GitHub'},
+  {id:'CVE-2026-30044', sev:'crit', repo:'panos-mgmt-inject',   prod:'PAN-OS 管理界面命令注入', type:'cmd',   lang:'Python',          st:'ok',   star:'29',   seen:'6 天前', src:'GitHub'},
+  {id:'CVE-2026-31221', sev:'high', repo:'gitlab-ci-ssrf',      prod:'GitLab SSRF 窃取凭据',   type:'ssrf',   lang:'Ruby',            st:'wait', star:'17',   seen:'1 周前', src:'GitHub'},
+  {id:'CVE-2026-30772', sev:'med',  repo:'modbus-gw-leak',      prod:'工业网关 Modbus 未授权', type:'leak',   lang:'Python',          st:'ok',   star:'12',   seen:'1 周前', src:'PacketStorm'}
+];
+const pocBody = document.getElementById('pocBody');
+pocBody.innerHTML = POCS.map(p => `
+  <tr data-t="${p.type}" data-st="${p.st}" data-q="${(p.id+' '+p.prod+' '+p.repo+' '+p.lang+' '+PTYPES[p.type]).toLowerCase()}">
+    <td class="td-main"><b class="mono" style="color:var(--${p.sev})">${p.id}</b><span>${p.prod} · ${p.repo}</span></td>
+    <td><span class="tag">${PTYPES[p.type]}</span></td>
+    <td class="tc">${p.lang}</td>
+    <td><span class="st ${PST[p.st][1]}">${PST[p.st][0]}</span></td>
+    <td class="tc">★ ${p.star}</td>
+    <td class="tc">${p.seen}</td>
+    <td><span class="tag">${p.src}</span></td>
+    <td><a class="link-btn" href="#" onclick="return false">仓库 ↗</a></td>
+  </tr>`).join('');
+/* POC 筛选 */
+const pocState = {type:'all', q:'', vf:false};
+function applyPocFilters(){
+  pocBody.querySelectorAll('tr').forEach(tr => {
+    const okT = pocState.type === 'all' || tr.dataset.t === pocState.type;
+    const okV = !pocState.vf || tr.dataset.st === 'ok';
+    const okQ = !pocState.q || tr.dataset.q.includes(pocState.q);
+    tr.style.display = (okT && okV && okQ) ? '' : 'none';
+  });
+}
+document.querySelectorAll('.tchip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tchip').forEach(b => b.setAttribute('aria-pressed','false'));
+    btn.setAttribute('aria-pressed','true');
+    pocState.type = btn.dataset.type;
+    applyPocFilters();
+  });
+});
+document.getElementById('vfToggle').addEventListener('click', function(){
+  const on = this.getAttribute('aria-pressed') === 'true';
+  this.setAttribute('aria-pressed', String(!on));
+  pocState.vf = !on; applyPocFilters();
+});
+document.getElementById('pocQ').addEventListener('input', function(){
+  pocState.q = this.value.trim().toLowerCase(); applyPocFilters();
+});
+
+/* ================= 杂项交互 ================= */
+/* 复制按钮 */
+document.querySelectorAll('.code .cp-btn, .cp-btn[data-copy]').forEach(b => {
+  b.addEventListener('click', () => {
+    const txt = b.dataset.copy || (b.closest('.code') && b.closest('.code').querySelector('pre').innerText) || '';
+    const done = () => { const o = b.textContent; b.textContent = '已复制'; setTimeout(() => b.textContent = o, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(txt).then(done).catch(done);
+    else done();
+  });
+});
+/* 开关（规则卡片 / 构建器）与通道多选 */
+document.querySelectorAll('.switch').forEach(s => {
+  s.addEventListener('click', () => {
+    s.classList.toggle('off');
+    s.setAttribute('aria-label', s.classList.contains('off') ? '已停用' : '已启用');
+  });
+});
+document.querySelectorAll('.chan[aria-pressed]').forEach(c => {
+  c.addEventListener('click', () => {
+    const on = c.getAttribute('aria-pressed') === 'true';
+    c.setAttribute('aria-pressed', String(!on));
+    c.classList.toggle('on', !on);
+  });
+});
+/* 实时情报右栏「新建订阅规则」→ 跳规则页 */
+document.querySelectorAll('.new-rule, [data-goto-builder]').forEach(b =>
+  b.addEventListener('click', () => { setView('rules'); window.scrollTo({top:0}); }));
+
+/* ================= 雷达 ================= */
+(function(){
+  const cv = document.getElementById('radar');
+  const ctx = cv.getContext('2d');
+  const S = 316, C = S/2, R = C - 14;
+  const blips = [
+    {a: 0.4, r: 0.28, sev:'crit'}, {a: 2.1, r: 0.62, sev:'high'}, {a: 3.6, r: 0.18, sev:'crit'},
+    {a: 4.4, r: 0.80, sev:'med'},  {a: 5.3, r: 0.45, sev:'high'}, {a: 1.2, r: 0.90, sev:'low'},
+    {a: 2.9, r: 0.35, sev:'high'}, {a: 5.9, r: 0.70, sev:'med'},  {a: 0.9, r: 0.55, sev:'med'},
+    {a: 3.1, r: 0.95, sev:'low'},  {a: 4.0, r: 0.30, sev:'med'},  {a: 2.5, r: 0.75, sev:'crit'}
+  ];
+  const cols = getComputedStyle(document.documentElement);
+  const sevColor = s => cols.getPropertyValue('--' + s).trim() ||
+    ({crit:'#F43F5E',high:'#FB923C',med:'#FDE047',low:'#38BDF8'})[s];
+  let sweep = 0, last = 0;
+  function draw(ts){
+    const dt = last ? (ts - last)/1000 : 0; last = ts;
+    if (!reduced) sweep += dt * 0.9;
+    if (!document.getElementById('view-feed').classList.contains('active')){ requestAnimationFrame(draw); return; }
+    const bg = cols.getPropertyValue('--panel').trim() || '#111A2E';
+    const line = cols.getPropertyValue('--line').trim() || '#223052';
+    const faint = cols.getPropertyValue('--faint').trim() || '#5E6E93';
+    const accent = cols.getPropertyValue('--accent').trim() || '#FFB224';
+    ctx.clearRect(0, 0, S, S);
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(C, C, R + 12, 0, 7); ctx.fill();
+    /* rings + cross */
+    ctx.strokeStyle = line; ctx.lineWidth = 1;
+    [0.33, 0.66, 1].forEach(k => { ctx.beginPath(); ctx.arc(C, C, R*k, 0, 7); ctx.stroke(); });
+    ctx.beginPath(); ctx.moveTo(C - R, C); ctx.lineTo(C + R, C);
+    ctx.moveTo(C, C - R); ctx.lineTo(C, C + R); ctx.stroke();
+    /* sweep trail */
+    const TRAIL = 1.15;
+    for (let i = 0; i < 34; i++){
+      const a = sweep - i * (TRAIL/34);
+      ctx.strokeStyle = accent;
+      ctx.globalAlpha = 0.30 * (1 - i/34);
+      ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(C, C);
+      ctx.lineTo(C + Math.cos(a)*R, C + Math.sin(a)*R); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    /* blips: 亮度随扫过时间衰减 */
+    blips.forEach(b => {
+      let d = sweep - b.a; d = ((d % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+      const glow = reduced ? 0.75 : Math.max(0.12, 1 - d/5.5);
+      const x = C + Math.cos(b.a) * R * b.r, y = C + Math.sin(b.a) * R * b.r;
+      ctx.fillStyle = sevColor(b.sev);
+      ctx.globalAlpha = glow;
+      ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 7); ctx.fill();
+      ctx.globalAlpha = glow * 0.35;
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+    /* center */
+    ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(C, C, 3, 0, 7); ctx.fill();
+    ctx.fillStyle = faint; ctx.font = '10px "IBM Plex Mono", monospace';
+    ctx.fillText('24h', C + 4, C - R + 12);
+    if (!reduced) requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
