@@ -24,16 +24,21 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 采集（NVD / GitHub POC / CISA KEV）
+      - name: 采集（NVD / GitHub POC / CISA KEV + AI 摘要 + 订阅推送）
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+          DEEPL_KEY: ${{ secrets.DEEPL_KEY }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
         run: python3 scripts/collect.py
 
       - name: 有变化则提交
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/data.json
+          git add data/data.json data/history.json
           if git diff --cached --quiet; then
             echo "数据无变化，跳过提交"
           else

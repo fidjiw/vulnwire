@@ -280,6 +280,7 @@ def build(repos, kev):
             'poc': poc,
             'src': 'CISA KEV' if is_kev else 'NVD',
             'time': rel_zh(f['published']),
+            'pub': f['published'],     # ISO 绝对时间（历史档案展示用）
             'title': title[:160],
             'tags': tag_list[:3],
             'ai': ai,
@@ -330,6 +331,131 @@ def build(repos, kev):
         'stats': stats,
     }
 
+# ---------------- 历史档案 ----------------
+HIST_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'history.json')
+HIST_MAX = 3000
+HIST_FIELDS = ('id', 'sev', 'cvss', 'poc', 'src', 'time', 'pub', 'title',
+               'titleZh', 'zh', 'zhBy', 'ai', 'tags', 'ver', 'link')
+
+def load_history():
+    try:
+        with open(HIST_PATH, encoding='utf-8') as fp:
+            h = json.load(fp)
+        return h if isinstance(h.get('items'), list) else {'items': []}
+    except Exception:  # noqa: BLE001 — 无档案/损坏都按冷启动处理
+        return {'items': []}
+
+def slim(it):
+    """历史条目只留搜索与展示需要的字段（不带 desc/refs/pocs，控制体积）"""
+    e = {k: it.get(k) for k in HIST_FIELDS if it.get(k) not in (None, '')}
+    e['id'] = it['id']
+    return e
+
+# ---------------- AI 中文摘要（GLM） ----------------
+GLM_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+
+def ai_summarize(pending):
+    """批量生成中文标题 + 摘要，返回 {id: (titleZh, zh)}；无 key / 失败返回部分结果"""
+    key = os.environ.get('GLM_API_KEY')
+    if not key or not pending:
+        return {}
+    out = {}
+    for k in range(0, len(pending), 8):   # 每批 8 条，glm-4-flash 免费额度足够
+        batch = pending[k:k + 8]
+        payload = [{'i': it['id'], 'en': it['title'][:120],
+                    'desc': (it.get('desc') or '')[:500]} for it in batch]
+        prompt = ('你是漏洞情报编辑。对每个漏洞给出简体中文标题（≤36字，产品名+漏洞类型）'
+                  '和 2-3 句中文摘要（漏洞影响、利用条件、处置要点）。'
+                  '只返回 JSON 数组，每项 {"i":"CVE编号","t":"中文标题","s":"中文摘要"}：\n'
+                  + json.dumps(payload, ensure_ascii=False))
+        body = json.dumps({'model': 'glm-4-flash', 'temperature': 0.2,
+                           'max_tokens': 1800,
+                           'messages': [{'role': 'user', 'content': prompt}]}).encode()
+        req = urllib.request.Request(GLM_URL, data=body, headers={
+            'Authorization': f'Bearer {key}',
+            'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(req, timeout=90) as r:
+                txt = json.loads(r.read().decode())['choices'][0]['message']['content']
+            m = re.search(r'\[.*\]', txt, re.S)
+            if not m:
+                continue
+            for e in json.loads(m.group(0)):
+                if e.get('i') and e.get('s'):
+                    out[e['i']] = (str(e.get('t', ''))[:60], str(e['s'])[:200])
+        except Exception as ex:  # noqa: BLE001 — 单批失败不拖垮整轮采集
+            print(f'  ! AI 摘要批次失败：{ex}', file=sys.stderr)
+    print(f'  AI 摘要：{len(out)}/{len(pending)} 条')
+    return out
+
+# ---------------- DeepL 翻译备选 ----------------
+def deepl_translate(pending):
+    """GLM 之外的兜底:DeepL 翻译标题+描述,返回 {id: (titleZh, zh)}"""
+    key = os.environ.get('DEEPL_KEY')
+    if not key or not pending:
+        return {}
+    # free 版 key 以 :fx 结尾走 api-free,pro key 走正式端点
+    url = ('https://api-free.deepl.com/v2/translate' if key.endswith(':fx')
+           else 'https://api.deepl.com/v2/translate')
+    out = {}
+    for k in range(0, len(pending), 20):   # 每批 20 条(每条 2 段文本)
+        batch = pending[k:k + 20]
+        texts = []
+        for it in batch:
+            texts.append(it['title'][:200])
+            texts.append((it.get('desc') or it['title'])[:450])
+        body = json.dumps({'text': texts, 'target_lang': 'ZH'}).encode()
+        req = urllib.request.Request(url, data=body, headers={
+            'Authorization': f'DeepL-Auth-Key {key}',
+            'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                ts = json.loads(r.read().decode())['translations']
+            for i, it in enumerate(batch):
+                t = ts[2 * i]['text'].strip()[:80]
+                s = ts[2 * i + 1]['text'].strip()[:300]
+                if t:
+                    out[it['id']] = (t, s)
+        except Exception as ex:  # noqa: BLE001
+            print(f'  ! DeepL 批次失败：{ex}', file=sys.stderr)
+    print(f'  DeepL 翻译：{len(out)}/{len(pending)} 条')
+    return out
+
+# ---------------- 订阅推送 ----------------
+def push_notify(new_items):
+    """新增 crit/high/在野利用 → Telegram Bot + 飞书 webhook；未配置静默跳过"""
+    hits = [i for i in new_items
+            if i['sev'] in ('crit', 'high') or i['poc'] == 'exploited'][:10]
+    if not hits:
+        return
+    lines = [f'🔴 VulnWire 新增高危漏洞 {len(hits)} 条']
+    for i in hits:
+        name = i.get('titleZh') or i['title'][:60]
+        lines.append(f"▪ {i['id']}〔{SEV_LABEL[i['sev']]}〕{name}\n  {i['link']}")
+    text = '\n'.join(lines)[:3800]
+    tg_tok, tg_chat = os.environ.get('TG_BOT_TOKEN'), os.environ.get('TG_CHAT_ID')
+    if tg_tok and tg_chat:
+        try:
+            body = json.dumps({'chat_id': tg_chat, 'text': text}).encode()
+            req = urllib.request.Request(
+                f'https://api.telegram.org/bot{tg_tok}/sendMessage', data=body,
+                headers={'Content-Type': 'application/json'})
+            urllib.request.urlopen(req, timeout=30)
+            print(f'  推送 Telegram：{len(hits)} 条')
+        except Exception as ex:  # noqa: BLE001
+            print(f'  ! Telegram 推送失败：{ex}', file=sys.stderr)
+    fs = os.environ.get('FEISHU_WEBHOOK')
+    if fs:
+        try:
+            body = json.dumps({'msg_type': 'text',
+                               'content': {'text': text}}).encode()
+            req = urllib.request.Request(fs, data=body,
+                                         headers={'Content-Type': 'application/json'})
+            urllib.request.urlopen(req, timeout=30)
+            print(f'  推送飞书：{len(hits)} 条')
+        except Exception as ex:  # noqa: BLE001
+            print(f'  ! 飞书推送失败：{ex}', file=sys.stderr)
+
 def main():
     print(f'[{datetime.now(TZ8):%Y-%m-%d %H:%M}] 开始采集（展示时区 UTC+8）')
     repos = fetch_github_repos()   # 先抓 GitHub（额度低，失败影响小）
@@ -338,11 +464,53 @@ def main():
     if not out or not out['items']:
         print('无有效数据，保留旧 data.json', file=sys.stderr)
         return 0
+
+    # 历史档案：命中缓存的复用 AI 摘要，其余调 GLM 生成
+    cold_start = not os.path.exists(HIST_PATH)
+    old = load_history()
+    old_by_id = {h['id']: h for h in old['items']}
+    zh = {cid: (h['titleZh'], h['zh']) for cid, h in old_by_id.items() if h.get('zh')}
+    pending = [it for it in out['items'] if it['id'] not in zh]
+    glm = ai_summarize(pending)                       # GLM 优先(摘要质量高)
+    rest = [it for it in pending if it['id'] not in glm]
+    dl = deepl_translate(rest)                        # DeepL 兜底(GLM 失败/缺 key)
+    zh.update(glm)
+    zh.update(dl)
+    for it in out['items']:
+        pair = zh.get(it['id'])
+        if pair:
+            it['titleZh'], it['zh'] = pair
+            if it['id'] in glm:
+                it['zhBy'] = 'glm'
+            elif it['id'] in dl:
+                it['zhBy'] = 'deepl'
+    new_ids = {it['id'] for it in out['items'] if it['id'] not in old_by_id}
+
     os.makedirs(os.path.dirname(os.path.abspath(OUT_PATH)), exist_ok=True)
     with open(OUT_PATH, 'w', encoding='utf-8') as fp:
         json.dump(out, fp, ensure_ascii=False, separators=(',', ':'))
     print(f'  写出 {OUT_PATH}: items={len(out["items"])} '
           f'pocs={len(out["pocs"])} stats={out["stats"]}')
+
+    # 合并历史：窗口内条目字段刷新（保 firstSeen），窗口外原样保留，新→旧截断
+    now_iso = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    merged = {}
+    for it in out['items']:
+        e = slim(it)
+        e['firstSeen'] = old_by_id.get(it['id'], {}).get('firstSeen', now_iso)
+        merged[it['id']] = e
+    for h in old['items']:
+        merged.setdefault(h['id'], h)
+    hist_items = sorted(merged.values(),
+                        key=lambda x: x.get('firstSeen', ''), reverse=True)[:HIST_MAX]
+    with open(HIST_PATH, 'w', encoding='utf-8') as fp:
+        json.dump({'updatedAt': now_iso, 'items': hist_items},
+                  fp, ensure_ascii=False, separators=(',', ':'))
+    print(f'  历史档案：{len(hist_items)} 条（本轮新增 {len(new_ids)}）')
+
+    # 订阅推送（冷启动不推，避免建档时一次性轰炸）
+    if not cold_start and new_ids:
+        push_notify([it for it in out['items'] if it['id'] in new_ids])
     return 0
 
 if __name__ == '__main__':
