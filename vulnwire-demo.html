@@ -213,11 +213,20 @@ a:hover{text-decoration:underline}
   color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 50%,transparent);
   border-radius:4px;padding:0 5px;margin-right:7px;vertical-align:1px;
 }
-/* expandable detail */
-.fi-detail{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease;cursor:default}
-.feed-item.open .fi-detail{grid-template-rows:1fr}
-.fi-detail>div{overflow:hidden}
-.detail-in{margin-top:11px;padding-top:11px;border-top:1px dashed var(--line);display:grid;gap:9px}
+/* ============ 详情弹窗 ============ */
+.mmask{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px 28px;background:color-mix(in srgb,var(--bg) 58%,transparent);backdrop-filter:blur(5px);overflow-y:auto}
+.mmask[hidden]{display:none}
+.modal{position:relative;width:min(700px,100%);background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:24px 26px 20px;animation:mpop .22s ease}
+@keyframes mpop{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.modal-x{position:absolute;top:13px;right:13px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);color:var(--muted);font-size:15px;line-height:1;cursor:pointer;transition:color .15s,border-color .15s}
+.modal-x:hover{color:var(--text);border-color:var(--accent)}
+.m-title{margin:8px 0 0;font-size:16.5px;font-weight:600;line-height:1.55;overflow-wrap:anywhere;padding-right:34px}
+.m-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-top:4px}
+.m-sec{font-family:"Chakra Petch",sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:20px 0 9px}
+.m-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;padding-top:15px;border-top:1px solid var(--line-soft)}
+#pocBody tr[data-i]{cursor:pointer}
+#pocBody tr[data-i]:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+@media (max-width:560px){.m-grid{grid-template-columns:1fr}}
 .d-row{font-size:12.5px;color:var(--muted)}
 .d-row b{color:var(--text);font-weight:600}
 .d-poc{
@@ -398,7 +407,7 @@ a:hover{text-decoration:underline}
   .ticker-track{animation:none;overflow-x:auto}
   .live-dot{animation:none}
   .feed-item.fresh{animation:none}
-  .fi-detail{transition:none}
+  .modal{animation:none}
 }
 </style>
 </head>
@@ -801,6 +810,14 @@ data: {<span class="k">"id"</span>:"CVE-2026-31287", <span class="k">"severity"<
   <span>漏讯 VulnWire — 数据来自 NVD · GitHub · CISA KEV 公开情报源，每小时自动抓取更新</span>
 </footer>
 
+<!-- 详情弹窗（须在 script 之前，脚本加载时即引用） -->
+<div class="mmask" id="mmask" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <button class="modal-x" id="modalX" type="button" aria-label="关闭详情">✕</button>
+    <div id="mBody"></div>
+  </div>
+</div>
+
 <script>
 /* 预览参数：?theme=dark / ?theme=light 强制指定主题 */
 (() => {
@@ -839,12 +856,9 @@ function itemEl(it, fresh){
   el.dataset.sev = it.sev;
   el.dataset.poc = it.poc;
   el.dataset.q = (it.id + ' ' + it.title + ' ' + it.tags.join(' ')).toLowerCase();
-  const pocRows = (it.pocs||[]).map(p =>
-    `<div class="d-poc"><b class="mono">${p.url ? `<a href="${p.url}" target="_blank" rel="noopener">${p.name}</a>` : p.name}</b><span class="lang">${p.lang}</span><span class="lang">${p.extra}</span><span class="stars">★ ${p.star}</span></div>`
-  ).join('') || '<div class="d-row">暂无公开 POC — 出现后将自动推送并标记</div>';
-  const refParts = [];
-  if (it.link) refParts.push(`<a href="${it.link}" target="_blank" rel="noopener">NVD 条目 ↗</a>`);
-  refParts.push('<a href="#" onclick="return false">加入关注清单</a>');
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  el.setAttribute('aria-label', `查看 ${it.id} 详情`);
   el.innerHTML = `
     <div class="fi-top">
       <span class="fi-id">${it.id}</span>
@@ -857,15 +871,16 @@ function itemEl(it, fresh){
       <span class="poc-badge ${it.poc}">${POC_ICON[it.poc]}${POC[it.poc].label}</span>
       ${it.tags.map(t => `<span class="tag">${t}</span>`).join('')}
     </div>
-    <p class="fi-ai"><span class="ai-tag">摘要</span>${it.ai}</p>
-    <div class="fi-detail"><div><div class="detail-in">
-      <div class="d-row">影响版本：<b class="mono">${it.ver || '详见公告'}</b></div>
-      ${pocRows}
-      <div class="d-row">参考：${refParts.join(' · ')}</div>
-    </div></div></div>`;
+    <p class="fi-ai"><span class="ai-tag">摘要</span>${it.ai}</p>`;
   el.addEventListener('click', e => {
     if (e.target.closest('a')) return;
-    el.classList.toggle('open');
+    openVuln(it);
+  });
+  el.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('a')){
+      e.preventDefault();
+      openVuln(it);
+    }
   });
   return el;
 }
@@ -983,8 +998,8 @@ const PST = {wild:['在野利用','wild'], ok:['已验证','ok'], wait:['待验�
 const POCS = [];
 const pocBody = document.getElementById('pocBody');
 function renderPocs(){
-  pocBody.innerHTML = POCS.map(p => `
-  <tr data-t="${p.type}" data-st="${p.st}" data-q="${(p.id+' '+p.prod+' '+p.repo+' '+p.lang+' '+PTYPES[p.type]).toLowerCase()}">
+  pocBody.innerHTML = POCS.map((p, i) => `
+  <tr data-t="${p.type}" data-st="${p.st}" data-i="${i}" data-q="${(p.id+' '+p.prod+' '+p.repo+' '+p.lang+' '+PTYPES[p.type]).toLowerCase()}" tabindex="0" aria-label="查看 ${p.id} POC 详情">
     <td class="td-main"><b class="mono" style="color:var(--${p.sev})">${p.id}</b><span>${p.prod} · ${p.repo}</span></td>
     <td><span class="tag">${PTYPES[p.type]}</span></td>
     <td class="tc">${p.lang}</td>
@@ -999,7 +1014,121 @@ function renderPocs(){
   document.getElementById('pocPager').textContent = `共 ${POCS.length} 条`;
 }
 renderPocs();
-/* POC 筛选 */
+
+/* ================= 详情弹窗 ================= */
+const mmask = document.getElementById('mmask');
+const mBody = document.getElementById('mBody');
+const modalX = document.getElementById('modalX');
+let mPrevFocus = null;
+
+function openModal(html, sevColor){
+  mPrevFocus = document.activeElement;
+  mBody.innerHTML = html;
+  if (sevColor) mBody.style.setProperty('--sev', sevColor);
+  mmask.hidden = false;
+  document.body.style.overflow = 'hidden';
+  modalX.focus();
+}
+function closeModal(){
+  if (mmask.hidden) return;
+  mmask.hidden = true;
+  document.body.style.overflow = '';
+  if (mPrevFocus && mPrevFocus.focus) mPrevFocus.focus();
+}
+mmask.addEventListener('click', e => { if (e.target === mmask) closeModal(); });
+modalX.addEventListener('click', closeModal);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !mmask.hidden) closeModal();
+});
+
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function vulnDetail(it){
+  const pocRows = (it.pocs || []).map(p =>
+    `<div class="d-poc"><b class="mono">${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>` : esc(p.name)}</b><span class="lang">${esc(p.lang)}</span><span class="lang">${esc(p.extra)}</span><span class="stars">★ ${esc(p.star)}</span></div>`
+  ).join('') || '<div class="d-row">暂无公开 POC — 出现后将自动标记</div>';
+  return `
+    <div class="fi-top">
+      <span class="fi-id">${esc(it.id)}</span>
+      <span class="fi-sev">${SEV[it.sev].label}</span>
+      <span class="fi-cvss">CVSS ${it.cvss.toFixed(1)}</span>
+      <span class="fi-meta"><span class="fi-src">${esc(it.src)}</span><span class="mono">${esc(it.time || '刚刚')}</span></span>
+    </div>
+    <h3 class="m-title" id="mTitle">${esc(it.title)}</h3>
+    <div class="fi-tags">
+      <span class="poc-badge ${it.poc}">${POC_ICON[it.poc]}${POC[it.poc].label}</span>
+      ${it.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}
+    </div>
+    <div class="m-sec">关键属性</div>
+    <div class="m-grid">
+      <div class="d-row">CVSS 评分：<b class="mono">${it.cvss.toFixed(1)}（${SEV[it.sev].label}）</b></div>
+      <div class="d-row">利用状态：<b>${POC[it.poc].label}</b></div>
+      <div class="d-row">影响版本：<b class="mono">${esc(it.ver || '详见公告')}</b></div>
+      <div class="d-row">披露时间：<b>${esc(it.time || '近期')}</b></div>
+      <div class="d-row">数据来源：<b>${esc(it.src)}</b></div>
+      <div class="d-row">关联 POC：<b>${(it.pocs || []).length} 个仓库</b></div>
+    </div>
+    <div class="m-sec">摘要</div>
+    <p class="fi-ai" style="margin:0">${esc(it.ai)}</p>
+    <div class="m-sec">公开 POC 仓库</div>
+    ${pocRows}
+    <div class="m-actions">
+      ${it.link ? `<a class="link-btn" href="${esc(it.link)}" target="_blank" rel="noopener">NVD 条目 ↗</a>` : ''}
+      <a class="link-btn" href="https://github.com/search?q=${encodeURIComponent(it.id)}&amp;type=repositories" target="_blank" rel="noopener">GitHub 搜索 ↗</a>
+    </div>`;
+}
+
+function pocDetail(p){
+  const rel = ITEMS.find(x => x.id === p.id);
+  return `
+    <div class="fi-top">
+      <span class="fi-id">${esc(p.id)}</span>
+      <span class="fi-sev">${SEV[p.sev].label}</span>
+      <span class="fi-cvss">★ ${esc(p.star)}</span>
+      <span class="fi-meta"><span class="fi-src">${esc(p.src)}</span><span class="mono">${esc(p.seen)}</span></span>
+    </div>
+    <h3 class="m-title" id="mTitle">${esc(p.repo)}</h3>
+    <div class="fi-tags">
+      <span class="st ${PST[p.st][1]}">${PST[p.st][0]}</span>
+      <span class="tag">${PTYPES[p.type]}</span>
+      <span class="tag">${esc(p.lang)}</span>
+    </div>
+    <div class="m-sec">关键属性</div>
+    <div class="m-grid">
+      <div class="d-row">漏洞类型：<b>${PTYPES[p.type]}</b></div>
+      <div class="d-row">主要语言：<b>${esc(p.lang)}</b></div>
+      <div class="d-row">Star 数：<b class="mono">★ ${esc(p.star)}</b></div>
+      <div class="d-row">最近推送：<b>${esc(p.seen)}</b></div>
+      <div class="d-row">验证状态：<b>${PST[p.st][0]}</b></div>
+      <div class="d-row">关联编号：<b class="mono">${esc(p.id)}</b></div>
+    </div>
+    ${p.prod ? `<div class="m-sec">仓库描述</div><p class="fi-ai" style="margin:0">${esc(p.prod)}</p>` : ''}
+    ${rel ? `<div class="m-sec">关联情报</div><p class="fi-ai" style="margin:0">${esc(rel.ai)}</p>` : ''}
+    <div class="m-actions">
+      ${p.url ? `<a class="link-btn" href="${esc(p.url)}" target="_blank" rel="noopener">打开仓库 ↗</a>` : ''}
+      <a class="link-btn" href="https://nvd.nist.gov/vuln/detail/${encodeURIComponent(p.id)}" target="_blank" rel="noopener">NVD 条目 ↗</a>
+    </div>`;
+}
+
+function openVuln(it){ openModal(vulnDetail(it), SEV[it.sev].c); }
+function openPoc(p){ openModal(pocDetail(p), SEV[p.sev].c); }
+
+/* POC 表行点击 / 键盘触发行内详情（链接除外） */
+pocBody.addEventListener('click', e => {
+  if (e.target.closest('a')) return;
+  const tr = e.target.closest('tr[data-i]');
+  if (tr) openPoc(POCS[+tr.dataset.i]);
+});
+pocBody.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const tr = e.target.closest('tr[data-i]');
+  if (!tr) return;
+  e.preventDefault();
+  openPoc(POCS[+tr.dataset.i]);
+});
+/* ================= POC 筛选 ================= */
 const pocState = {type:'all', q:'', vf:false};
 function applyPocFilters(){
   pocBody.querySelectorAll('tr').forEach(tr => {
