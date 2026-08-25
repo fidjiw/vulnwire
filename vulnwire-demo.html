@@ -228,20 +228,17 @@ a:hover{text-decoration:underline}
 #pocBody tr[data-i]:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 @media (max-width:560px){.m-grid{grid-template-columns:1fr}}
 
-/* ============ 更新提醒浮层 ============ */
-.utoast{position:fixed;right:18px;bottom:18px;z-index:90;display:flex;align-items:flex-start;gap:11px;width:min(380px,calc(100vw - 28px));background:var(--panel);border:1px solid var(--accent);border-radius:12px;box-shadow:var(--shadow);padding:13px 13px 12px;animation:upop .25s ease}
-.utoast[hidden]{display:none}
-@keyframes upop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.ut-dot{flex:none;width:9px;height:9px;margin-top:5px;border-radius:50%;background:var(--accent);animation:utp 2.2s ease infinite}
-@keyframes utp{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
-.ut-body{flex:1;min-width:0}
-.ut-title{font-size:13.5px;font-weight:600;color:var(--text)}
-.ut-desc{margin-top:3px;font-size:12px;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}
-.ut-btn{flex:none;align-self:center;background:var(--accent);color:var(--accent-ink);border:none;border-radius:8px;padding:7px 14px;font-weight:700;font-size:12.5px;cursor:pointer;transition:filter .15s}
-.ut-btn:hover{filter:brightness(1.08)}
-.ut-x{flex:none;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--muted);font-size:13px;line-height:1;cursor:pointer;border-radius:6px}
-.ut-x:hover{color:var(--text)}
-@media (max-width:560px){.utoast{left:14px;right:14px;bottom:14px;width:auto}}
+/* ============ 网站更新公告弹窗 ============ */
+.mmask.center{align-items:center;padding-top:16px}
+.un-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.un-badge{font-family:"Chakra Petch",sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent);border-radius:6px;padding:3px 9px}
+.un-ver{font-family:"IBM Plex Mono","PingFang SC",monospace;font-size:12px;color:var(--muted)}
+.un-date{font-family:"Chakra Petch",sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:18px 0 8px}
+.un-list{margin:0;padding-left:18px;display:grid;gap:7px}
+.un-list li{font-size:13px;line-height:1.65;color:var(--text)}
+.un-list li::marker{color:var(--accent)}
+.un-ok{flex:1;background:var(--accent);color:var(--accent-ink);border:none;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13.5px;cursor:pointer;transition:filter .15s}
+.un-ok:hover{filter:brightness(1.08)}
 .d-row{font-size:12.5px;color:var(--muted)}
 .d-row b{color:var(--text);font-weight:600}
 .d-poc{
@@ -423,7 +420,6 @@ a:hover{text-decoration:underline}
   .live-dot{animation:none}
   .feed-item.fresh{animation:none}
   .modal{animation:none}
-  .utoast,.ut-dot{animation:none}
 }
 </style>
 </head>
@@ -834,17 +830,6 @@ data: {<span class="k">"id"</span>:"CVE-2026-31287", <span class="k">"severity"<
   </div>
 </div>
 
-<!-- 更新提醒浮层 -->
-<div class="utoast" id="utoast" hidden role="status" aria-live="polite">
-  <span class="ut-dot" aria-hidden="true"></span>
-  <div class="ut-body">
-    <div class="ut-title">情报已更新</div>
-    <div class="ut-desc" id="utDesc"></div>
-  </div>
-  <button class="ut-btn" id="utRefresh" type="button">刷新</button>
-  <button class="ut-x" id="utX" type="button" aria-label="暂不刷新，关闭提醒">✕</button>
-</div>
-
 <script>
 /* 预览参数：?theme=dark / ?theme=light 强制指定主题 */
 (() => {
@@ -1048,10 +1033,11 @@ const mBody = document.getElementById('mBody');
 const modalX = document.getElementById('modalX');
 let mPrevFocus = null;
 
-function openModal(html, sevColor){
+function openModal(html, sevColor, center){
   mPrevFocus = document.activeElement;
   mBody.innerHTML = html;
   if (sevColor) mBody.style.setProperty('--sev', sevColor);
+  mmask.classList.toggle('center', !!center);
   mmask.hidden = false;
   document.body.style.overflow = 'hidden';
   modalX.focus();
@@ -1059,6 +1045,7 @@ function openModal(html, sevColor){
 function closeModal(){
   if (mmask.hidden) return;
   mmask.hidden = true;
+  mmask.classList.remove('center');
   document.body.style.overflow = '';
   if (mPrevFocus && mPrevFocus.focus) mPrevFocus.focus();
 }
@@ -1221,7 +1208,6 @@ fetch('data/data.json')
     const hm = `${p2(t.getUTCHours())}:${p2(t.getUTCMinutes())}`;
     document.getElementById('dataAt').textContent = `数据 ${hm} 更新 · 真实源`;
     document.getElementById('pocUpdatedAt').textContent = `更新于 ${hm}`;
-    regBaseline(d.generatedAt, d.items, d.pocs);
   })
   .catch(() => {
     document.getElementById('dataAt').textContent = '数据加载失败';
@@ -1232,51 +1218,50 @@ fetch('data/data.json')
       pocBody.innerHTML = '<tr><td colspan="8" style="padding:22px;text-align:center;color:var(--muted);font-size:13px">暂无数据</td></tr>';
   });
 
-/* ================= 更新提醒（轮询 data.json 新版本） ================= */
-/* 采集脚本每小时提交新 data.json；页面停留期间每 5 分钟静默比对一次
-   generatedAt，发现新版本弹右下角提醒（「刷新」重载页面，「✕」本次不再打扰） */
-const upd = {
-  gen: '',              // 当前展示数据的 generatedAt
-  notified: '',         // 已提醒过的版本（「稍后」后同一版本不重复弹）
-  ids: new Set(),       // 已展示的漏洞 id（算新增条数用）
-  repos: new Set(),     // 已展示的 POC 仓库名
-};
-function regBaseline(gen, items, pocs){
-  upd.gen = gen || '';
-  upd.ids = new Set((items || []).map(i => i.id));
-  upd.repos = new Set((pocs || []).map(p => p.repo));
+/* ================= 网站更新公告（版本变更时居中弹窗） ================= */
+/* 每次部署功能改动时：更新 SITE_VERSION 并在 CHANGELOG 头部加一条（新在前）。
+   回访用户版本落后时弹居中公告说明改动；首次访问不弹（静默记录版本）。
+   「知道了」/Esc/遮罩/✕ 任一关闭后不再重复弹，直到下一个新版本。 */
+const SITE_VERSION = '2026-08-25';
+const CHANGELOG = [
+  { date: '2026-08-25', items: [
+    '漏洞情报与 POC 仓库支持点击弹窗查看完整详情：关键属性、摘要、关联仓库与原文链接',
+    '新增网站更新公告：版本更新后自动弹窗说明本次改动',
+  ]},
+  { date: '2026-08-24', items: [
+    '接入真实数据源：NVD · GitHub POC 仓库 · CISA KEV，每小时自动抓取',
+    '清除全部演示数据，无数据时如实展示空状态',
+  ]},
+];
+function maybeShowUpdateNotice(){
+  let store = null, lastSeen = null;
+  try { lastSeen = localStorage.getItem('vwVer'); store = localStorage; }
+  catch(_){
+    try { lastSeen = sessionStorage.getItem('vwVer'); store = sessionStorage; } catch(_){}
+  }
+  const save = () => { try { store && store.setItem('vwVer', SITE_VERSION); } catch(_){} };
+  if (!lastSeen){ save(); return; }          // 首次访问：记录版本，不打扰
+  if (lastSeen === SITE_VERSION) return;     // 已看过当前版本
+  const fresh = CHANGELOG.filter(e => e.date > lastSeen);
+  if (!fresh.length){ save(); return; }
+  const html = `
+    <div class="un-head">
+      <span class="un-badge">新版本</span>
+      <span class="un-ver">${SITE_VERSION}</span>
+    </div>
+    <div class="m-title" id="mTitle">网站已更新</div>
+    ${fresh.map(e => `
+      <div class="un-date">${e.date}</div>
+      <ul class="un-list">${e.items.map(i => `<li>${i}</li>`).join('')}</ul>`).join('')}
+    <div class="m-actions">
+      <button class="un-ok" id="unOk" type="button">知道了</button>
+    </div>`;
+  openModal(html, getComputedStyle(document.documentElement)
+            .getPropertyValue('--accent').trim(), true);
+  save();                                     // 弹出即记为已读，关闭方式不限
+  document.getElementById('unOk').addEventListener('click', closeModal);
 }
-async function checkUpdate(){
-  if (document.hidden) return;                 // 后台标签页不浪费请求
-  try{
-    const r = await fetch(`data/data.json?t=${Date.now()}`, {cache: 'no-store'});
-    if (!r.ok) return;
-    const d = await r.json();
-    if (!d || !d.generatedAt) return;
-    if (d.generatedAt === upd.gen || d.generatedAt === upd.notified) return;
-    let desc;
-    if (!upd.gen){                             // 打开时加载失败、现在恢复了
-      desc = '数据已就绪 — 刷新页面加载最新情报';
-    } else {
-      const nIds = (d.items || []).filter(i => !upd.ids.has(i.id)).length;
-      const nRps = (d.pocs || []).filter(p => !upd.repos.has(p.repo)).length;
-      const parts = [];
-      if (nIds) parts.push(`新增 ${nIds} 条漏洞情报`);
-      if (nRps) parts.push(`新增 ${nRps} 个 POC 仓库`);
-      const t = new Date(Date.parse(d.generatedAt) + 8 * 3600e3);
-      const p2 = n => String(n).padStart(2, '0');
-      const hm = `${p2(t.getUTCHours())}:${p2(t.getUTCMinutes())}`;
-      desc = (parts.length ? parts.join('，') + '。' : '') + `${hm} 抓取（UTC+8）— 刷新查看`;
-    }
-    upd.notified = d.generatedAt;
-    document.getElementById('utDesc').textContent = desc;
-    document.getElementById('utoast').hidden = false;
-  }catch(_){ /* 网络波动，下个周期再试 */ }
-}
-document.getElementById('utRefresh').addEventListener('click', () => location.reload());
-document.getElementById('utX').addEventListener('click', () => { document.getElementById('utoast').hidden = true; });
-setInterval(checkUpdate, 5 * 60 * 1000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+setTimeout(maybeShowUpdateNotice, 600);       // 稍等页面先渲染完
 
 /* ================= 杂项交互 ================= */
 /* 复制按钮 */
