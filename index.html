@@ -170,7 +170,7 @@ a:hover{text-decoration:underline}
   color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:5px 11px;
 }
 .stream-btn:hover{color:var(--text);border-color:var(--muted)}
-.stream-btn.playing{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.stream-btn:disabled{opacity:.55;cursor:default}
 
 /* ============ feed ============ */
 .feed{display:flex;flex-direction:column}
@@ -235,9 +235,6 @@ a:hover{text-decoration:underline}
 .stat .s-label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
 .stat .s-val{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:600;line-height:1.25;color:var(--text)}
 .stat .s-val .u{font-size:13px;color:var(--faint);font-weight:400;margin-left:3px}
-.stat .s-delta{font-size:11.5px;font-weight:600}
-.stat .s-delta.up{color:var(--ok)}
-.stat .s-delta.warn{color:var(--crit)}
 .stat svg{display:block;width:100%;height:26px;margin-top:5px}
 
 /* radar */
@@ -429,7 +426,7 @@ a:hover{text-decoration:underline}
     <div class="top-right">
       <span class="live-pill"><span class="live-dot"></span>LIVE</span>
       <span class="clock mono" id="clock">--:--:--</span>
-      <span class="avatar" title="演示账户">XF</span>
+      <span class="avatar" title="访客">XF</span>
     </div>
   </div>
 </header>
@@ -451,11 +448,11 @@ a:hover{text-decoration:underline}
   <section class="panel" aria-label="实时漏洞情报流">
     <div class="panel-head">
       <h2>实时情报流</h2>
-      <span class="eyebrow" id="dataAt">演示数据</span>
+      <span class="eyebrow" id="dataAt">数据加载中…</span>
       <span class="spacer"></span>
-      <button class="stream-btn playing" id="streamBtn" aria-pressed="true">
+      <button class="stream-btn" id="streamBtn" disabled>
         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-        <span id="streamBtnText">暂停接收</span>
+        <span id="streamBtnText">加载中…</span>
       </button>
     </div>
 
@@ -483,30 +480,23 @@ a:hover{text-decoration:underline}
 
     <!-- 今日态势 -->
     <section class="panel" aria-label="今日态势">
-      <div class="panel-head"><h2>今日态势</h2><span class="eyebrow">24h</span></div>
+      <div class="panel-head"><h2>今日态势</h2><span class="eyebrow">近 72h</span></div>
       <div class="stats">
         <div class="stat">
-          <div class="s-label">今日新增</div>
-          <div class="s-val" id="statNew">156</div>
-          <svg viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0 20 L10 18 L20 21 L30 15 L40 16 L50 11 L60 13 L70 8 L80 10 L90 5 L100 6 L100 26 L0 26 Z" fill="var(--accent-soft)"/>
-            <path d="M0 20 L10 18 L20 21 L30 15 L40 16 L50 11 L60 13 L70 8 L80 10 L90 5 L100 6" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
-          </svg>
+          <div class="s-label">近 72h 新增</div>
+          <div class="s-val" id="statNew">0</div>
         </div>
         <div class="stat">
           <div class="s-label">高危及以上</div>
-          <div class="s-val" id="statHigh">41<span class="u">条</span></div>
-          <div class="s-delta up">▲ 12% 较昨日</div>
+          <div class="s-val" id="statHigh">0<span class="u">条</span></div>
         </div>
         <div class="stat">
           <div class="s-label">POC 已出</div>
-          <div class="s-val" id="statPoc">23<span class="u">条</span></div>
-          <div class="s-delta warn">▲ 8 条 / 6h</div>
+          <div class="s-val" id="statPoc">0<span class="u">条</span></div>
         </div>
         <div class="stat">
           <div class="s-label">在野利用</div>
-          <div class="s-val" id="statWild">6<span class="u">条</span></div>
-          <div class="s-delta warn">含 2 条 KEV 新增</div>
+          <div class="s-val" id="statWild">0<span class="u">条</span></div>
         </div>
       </div>
     </section>
@@ -515,77 +505,43 @@ a:hover{text-decoration:underline}
     <section class="panel" aria-label="威胁雷达">
       <div class="panel-head"><h2>威胁雷达</h2><span class="eyebrow">Radar</span></div>
       <div class="radar-box">
-        <canvas id="radar" width="316" height="316" role="img" aria-label="雷达图：以严重度标记近 24 小时新增漏洞"></canvas>
+        <canvas id="radar" width="316" height="316" role="img" aria-label="雷达图：以严重度标记近 72 小时新披露漏洞"></canvas>
         <div class="radar-legend">
-          <div class="rl-row" style="--sc:var(--crit)"><span class="rl-dot"></span>严重<b>5</b></div>
-          <div class="rl-row" style="--sc:var(--high)"><span class="rl-dot"></span>高危<b>18</b></div>
-          <div class="rl-row" style="--sc:var(--med)"><span class="rl-dot"></span>中危<b>27</b></div>
-          <div class="rl-row" style="--sc:var(--low)"><span class="rl-dot"></span>低危<b>9</b></div>
+          <div class="rl-row" style="--sc:var(--crit)"><span class="rl-dot"></span>严重<b id="radarCrit">0</b></div>
+          <div class="rl-row" style="--sc:var(--high)"><span class="rl-dot"></span>高危<b id="radarHigh">0</b></div>
+          <div class="rl-row" style="--sc:var(--med)"><span class="rl-dot"></span>中危<b id="radarMed">0</b></div>
+          <div class="rl-row" style="--sc:var(--low)"><span class="rl-dot"></span>低危<b id="radarLow">0</b></div>
         </div>
       </div>
-      <p class="radar-note">光点为近 24h 新增漏洞，按严重度着色；距圆心越近，热度分越高（CVSS × EPSS × POC 增速）。</p>
+      <p class="radar-note">光点为近 72h 新披露漏洞，按严重度着色，数量与左下统计一致；位置为可视化示意。</p>
     </section>
 
-    <!-- POC 风向 -->
-    <section class="panel" aria-label="POC 风向">
-      <div class="panel-head"><h2>POC 风向</h2><span class="eyebrow">Sources</span></div>
+    <!-- 数据源 -->
+    <section class="panel" aria-label="数据源">
+      <div class="panel-head"><h2>数据源</h2><span class="eyebrow">Sources</span></div>
       <div class="src-list">
         <div class="src-row">
-          <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-1-2.6c3.2-.4 6.5-1.6 6.5-7A5.4 5.4 0 0 0 20 4.8 5 5 0 0 0 19.9 1S18.7.6 16 2.5a13.4 13.4 0 0 0-7 0C6.3.6 5.1 1 5.1 1A5 5 0 0 0 5 4.8a5.4 5.4 0 0 0-1.5 3.7c0 5.4 3.3 6.6 6.4 7a3.4 3.4 0 0 0-1 2.6V21"/></svg></div>
-          <div><div class="src-name">GitHub 关键词监控</div><div class="src-desc">CVE-2026-\d+ · 代码/仓库/Release</div></div>
-          <div class="src-count"><b>+89</b><span>今日</span></div>
-        </div>
-        <div class="src-row">
           <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l9 4.9v10.2L12 22l-9-4.9V6.9L12 2z"/><path d="M12 22V12M3 6.9l9 5.1 9-5.1"/></svg></div>
-          <div><div class="src-name">trickest/cve</div><div class="src-desc">POC 聚合仓库 · Release 监控</div></div>
-          <div class="src-count"><b>+37</b><span>今日</span></div>
+          <div><div class="src-name">NVD 2.0</div><div class="src-desc">近 72h 新披露 CVE</div></div>
+          <div class="src-count"><b id="srcNvd">—</b><span>条</span></div>
         </div>
         <div class="src-row">
-          <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
-          <div><div class="src-name">Exploit-DB / PacketStorm</div><div class="src-desc">提交记录 · git commit 监控</div></div>
-          <div class="src-count"><b>+12</b><span>今日</span></div>
+          <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-1-2.6c3.2-.4 6.5-1.6 6.5-7A5.4 5.4 0 0 0 20 4.8 5 5 0 0 0 19.9 1S18.7.6 16 2.5a13.4 13.4 0 0 0-7 0C6.3.6 5.1 1 5.1 1A5 5 0 0 0 5 4.8a5.4 5.4 0 0 0-1.5 3.7c0 5.4 3.3 6.6 6.4 7a3.4 3.4 0 0 0-1 2.6V21"/></svg></div>
+          <div><div class="src-name">GitHub</div><div class="src-desc">CVE 命名 POC 仓库 · 近 7 天活跃</div></div>
+          <div class="src-count"><b id="srcGh">—</b><span>个</span></div>
         </div>
         <div class="src-row">
           <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
-          <div><div class="src-name">CISA KEV 目录</div><div class="src-desc">在野利用清单 · 增量同步</div></div>
-          <div class="src-count"><b>+6</b><span>本周</span></div>
-        </div>
-        <div class="src-row">
-          <div class="src-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 9h4M7 13h8"/><path d="M17 18v3M7 18v3"/></svg></div>
-          <div><div class="src-name">厂商与安全厂商公告</div><div class="src-desc">MSRC / Atlassian / 奇安信 / 微步 RSS</div></div>
-          <div class="src-count"><b>+21</b><span>今日</span></div>
+          <div><div class="src-name">CISA KEV</div><div class="src-desc">在野利用清单 · 增量比对</div></div>
+          <div class="src-count"><b id="srcKev">—</b><span>条命中</span></div>
         </div>
       </div>
     </section>
 
-    <!-- 告警规则 -->
+    <!-- 订阅与告警 -->
     <section class="panel" aria-label="订阅与告警">
       <div class="panel-head"><h2>订阅与告警</h2><span class="eyebrow">Rules</span></div>
-      <div class="rule-list">
-        <div class="rule">
-          <div class="rule-r"><span class="rule-exp">CVSS ≥ 9.0 且 POC 出现</span><span class="switch" role="img" aria-label="已启用"></span></div>
-          <div class="rule-dest">
-            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.6c.1-.5-.4-.9-.8-.7L2.7 11.1c-.5.2-.5.9 0 1.1l4.6 1.5 1.7 5.4c.1.4.6.5.9.2l2.5-2.3 4.7 3.4c.3.2.8.1.9-.3l3.9-15.5zM8.5 13.6l9.2-5.9-7.2 6.7-.2 3-1.8-3.8z"/></svg>Telegram</span>
-            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>飞书</span>
-            <span class="rule-then">即时推送 · 含 POC 链接</span>
-          </div>
-        </div>
-        <div class="rule">
-          <div class="rule-r"><span class="rule-exp">关注产品命中：Confluence / Nacos / FortiGate</span><span class="switch" role="img" aria-label="已启用"></span></div>
-          <div class="rule-dest">
-            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5h-2v4H7v2h4v4h2v-4h4v-2h-4V7z"/></svg>钉钉</span>
-            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>邮件</span>
-            <span class="rule-then">命中关注产品即推</span>
-          </div>
-        </div>
-        <div class="rule">
-          <div class="rule-r"><span class="rule-exp">CISA KEV 新增条目</span><span class="switch off" role="img" aria-label="已停用"></span></div>
-          <div class="rule-dest">
-            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H7l-3 3V4z"/></svg>Webhook → n8n</span>
-            <span class="rule-then">进入工单流转</span>
-          </div>
-        </div>
-      </div>
+      <p style="padding:4px 16px 14px;color:var(--muted);font-size:12.5px;line-height:1.7">订阅推送功能即将上线。可先到「订阅规则」页面用构建器预览规则条件，上线后保存的规则命中即推送。</p>
       <button class="new-rule">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         新建订阅规则
@@ -603,7 +559,7 @@ a:hover{text-decoration:underline}
         <h1>POC 库</h1>
         <p>去重后的公开 POC / EXP 元数据索引 · 只收录链接与验证状态，不托管代码</p>
       </div>
-      <div class="vh-right"><span class="tag">更新于 1 分钟前</span></div>
+      <div class="vh-right"><span class="tag" id="pocUpdatedAt">数据加载中…</span></div>
     </div>
 
     <section class="panel">
@@ -638,11 +594,7 @@ a:hover{text-decoration:underline}
           <tbody id="pocBody"></tbody>
         </table>
       </div>
-      <div class="pager">
-        共 1,286 条 · 第 1 / 64 页
-        <button class="link-btn" disabled>上一页</button>
-        <button class="link-btn">下一页</button>
-      </div>
+      <div class="pager" id="pocPager">共 — 条</div>
     </section>
   </section>
 
@@ -658,81 +610,9 @@ a:hover{text-decoration:underline}
 
     <div class="rules-grid">
       <div>
-        <section class="panel rcard">
-          <div class="rc-head">
-            <span class="rc-name">核心产品高危告警</span>
-            <span class="switch" role="img" aria-label="已启用"></span>
-            <span class="rc-when">最近触发 12 分钟前 · 本周 34 次</span>
-          </div>
-          <div class="rc-conds">
-            <span class="tag">产品 ∈ 关注清单</span><span class="tag">CVSS ≥ 7.0</span><span class="tag">POC = 已公开</span>
-          </div>
-          <div class="rc-foot">
-            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5h-2v4H7v2h4v4h2v-4h4v-2h-4V7z"/></svg>钉钉</span>
-            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>邮件</span>
-            <span class="rule-then">逐条即时 · 含处置建议</span>
-          </div>
-        </section>
-
-        <section class="panel rcard">
-          <div class="rc-head">
-            <span class="rc-name">KEV 在野利用即时推送</span>
-            <span class="switch" role="img" aria-label="已启用"></span>
-            <span class="rc-when">最近触发 1 小时前 · 本周 9 次</span>
-          </div>
-          <div class="rc-conds">
-            <span class="tag">CISA KEV = 新增条目</span><span class="tag">免打扰例外</span>
-          </div>
-          <div class="rc-foot">
-            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.6c.1-.5-.4-.9-.8-.7L2.7 11.1c-.5.2-.5.9 0 1.1l4.6 1.5 1.7 5.4c.1.4.6.5.9.2l2.5-2.3 4.7 3.4c.3.2.8.1.9-.3l3.9-15.5zM8.5 13.6l9.2-5.9-7.2 6.7-.2 3-1.8-3.8z"/></svg>Telegram</span>
-            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>飞书</span>
-            <span class="rule-then">最高优先级 · 电话轮值模式</span>
-          </div>
-        </section>
-
-        <section class="panel rcard">
-          <div class="rc-head">
-            <span class="rc-name">批量武器化监测</span>
-            <span class="switch" role="img" aria-label="已启用"></span>
-            <span class="rc-when">最近触发 昨天 · 本周 5 次</span>
-          </div>
-          <div class="rc-conds">
-            <span class="tag">同 CVE POC 仓库 ≥ 3</span><span class="tag">24h Star 增速 ≥ 100</span>
-          </div>
-          <div class="rc-foot">
-            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H7l-3 3V4z"/></svg>Webhook → n8n</span>
-            <span class="rule-then">进入工单流转</span>
-          </div>
-        </section>
-
-        <section class="panel rcard">
-          <div class="rc-head">
-            <span class="rc-name">国内组件专项（通达 / 致远 / 蓝凌）</span>
-            <span class="switch" role="img" aria-label="已启用"></span>
-            <span class="rc-when">最近触发 3 天前 · 本周 12 次</span>
-          </div>
-          <div class="rc-conds">
-            <span class="tag">产品关键词 命中</span><span class="tag">来源 = CNVD / CNNVD</span>
-          </div>
-          <div class="rc-foot">
-            <span class="chan"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5h-2v4H7v2h4v4h2v-4h4v-2h-4V7z"/></svg>钉钉</span>
-            <span class="rule-then">工作时间聚合推送</span>
-          </div>
-        </section>
-
-        <section class="panel rcard">
-          <div class="rc-head">
-            <span class="rc-name">每日情报摘要</span>
-            <span class="switch off" role="img" aria-label="已停用"></span>
-            <span class="rc-when">今早 09:00 已发送 · 已停用</span>
-          </div>
-          <div class="rc-conds">
-            <span class="tag">时间 = 每日 09:00</span><span class="tag">聚合 24h 全量</span>
-          </div>
-          <div class="rc-foot">
-            <span class="chan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>邮件</span>
-            <span class="rule-then">含 Top10 与关注产品命中清单</span>
-          </div>
+        <section class="panel" style="padding:34px 20px;text-align:center">
+          <div style="color:var(--text);font-weight:600;margin-bottom:6px">还没有订阅规则</div>
+          <div style="color:var(--muted);font-size:13px;line-height:1.7">订阅推送功能即将上线。<br>可在右侧「新建规则」构建器中预览规则条件，功能上线后保存的规则命中即推送。</div>
         </section>
       </div>
 
@@ -787,12 +667,7 @@ a:hover{text-decoration:underline}
         <table class="tbl">
           <thead><tr><th>时间</th><th>规则</th><th>命中事件</th><th>通道</th><th>状态</th></tr></thead>
           <tbody>
-            <tr><td class="tc">12:36</td><td>核心产品高危告警</td><td><span class="tc">CVE-2026-29907</span> Nacos 未授权 · 命中关注产品「Nacos」</td><td>钉钉 + 邮件</td><td><span class="st ok">已送达</span></td></tr>
-            <tr><td class="tc">12:02</td><td>KEV 在野利用即时推送</td><td><span class="tc">CVE-2026-28843</span> Ivanti Connect Secure</td><td>Telegram</td><td><span class="st ok">已送达</span></td></tr>
-            <tr><td class="tc">11:47</td><td>核心产品高危告警</td><td><span class="tc">CVE-2026-31287</span> Confluence OGNL 注入</td><td>钉钉 + 邮件</td><td><span class="st ok">已送达</span></td></tr>
-            <tr><td class="tc">10:15</td><td>批量武器化监测</td><td><span class="tc">CVE-2026-31287</span> POC 仓库 +6 / 24h Star +1.2k</td><td>Webhook → n8n</td><td><span class="st ok">已送达</span></td></tr>
-            <tr><td class="tc">09:00</td><td>每日情报摘要</td><td>昨日 156 条 · 高危及以上 41 · POC 23</td><td>邮件</td><td><span class="st ok">已送达</span></td></tr>
-            <tr><td class="tc">08:52</td><td>国内组件专项</td><td>CNVD 通用型漏洞 3 条（通达 / 致远）</td><td>钉钉</td><td><span class="st wait">已重试 1 次</span></td></tr>
+            <tr><td colspan="5" style="padding:22px;text-align:center;color:var(--muted);font-size:13px">暂无告警记录 — 订阅推送功能上线后，此处显示规则命中与送达记录</td></tr>
           </tbody>
         </table>
       </div>
@@ -823,7 +698,7 @@ a:hover{text-decoration:underline}
       <div>
         <section class="api-sec" id="api-auth">
           <h3>快速开始与认证</h3>
-          <p>所有请求使用 Bearer Token 认证。Token 在「设置 → API」中生成，可按用途开多个、独立吊销。以下示例使用只读演示 Token。</p>
+          <p>所有请求使用 Bearer Token 认证。Token 在「设置 → API」中生成，可按用途开多个、独立吊销。以下示例使用只读 Token。</p>
           <div class="token-card">
             <span class="mono" style="font-size:13px">vw_live_9f2e••••••••••••3ab7</span>
             <span class="tag">只读 · 2026-11-30 到期</span>
@@ -923,7 +798,7 @@ data: {<span class="k">"id"</span>:"CVE-2026-31287", <span class="k">"severity"<
 <footer class="wrap foot">
   <span>漏讯 VulnWire · 实时漏洞与 POC 情报站</span>
   <span class="sep">|</span>
-  <span>设计概念稿 — 页面中的漏洞与数据均为演示模拟，非真实情报</span>
+  <span>漏讯 VulnWire — 数据来自 NVD · GitHub · CISA KEV 公开情报源，每小时自动抓取更新</span>
 </footer>
 
 <script>
@@ -933,7 +808,7 @@ data: {<span class="k">"id"</span>:"CVE-2026-31287", <span class="k">"severity"<
   if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
 })();
 
-/* ================= 数据（演示模拟） ================= */
+/* ================= 数据（data/data.json 动态加载） ================= */
 const SEV = {
   crit:{label:'严重', c:'var(--crit)'},
   high:{label:'高危', c:'var(--high)'},
@@ -947,105 +822,7 @@ const POC = {
   none:{label:'暂无 POC'}
 };
 
-const ITEMS = [
- {id:'CVE-2026-31287', sev:'crit', cvss:9.8, poc:'exploited', src:'CISA KEV', time:'4 分钟前',
-  title:'Atlassian Confluence Data Center — OGNL 注入致未授权远程代码执行',
-  tags:['Confluence','RCE','OGNL 注入'],
-  ai:'已列入 CISA 在野利用清单。互联网暴露实例约 4.1 万，认证前即可触发，建议立即升级至 8.5.x 修复版。',
-  ver:'8.0.0 – 8.5.3',
-  pocs:[{name:'confluence-rce-auto', lang:'Python · 一键化', extra:'3 天前', star:'2.1k'},
-        {name:'CVE-2026-31287-detect', lang:'Nuclei 模板', extra:'1 天前', star:'486'}]},
- {id:'CVE-2026-29814', sev:'crit', cvss:9.6, poc:'poc', src:'GitHub', time:'11 分钟前',
-  title:'Fortinet FortiManager — 越界写入可致设备接管',
-  tags:['FortiManager','内存破坏'],
-  ai:'管理面漏洞，攻击成功可直接下发恶意配置至被管设备。POC 已公开但利用条件较苛刻，48 小时内为关注窗口。',
-  ver:'7.0.x – 7.6.x',
-  pocs:[{name:'fmt-oob-write-poc', lang:'Go', extra:'6 小时前', star:'312'}]},
- {id:'CVE-2026-30101', sev:'high', cvss:8.1, poc:'poc', src:'NVD', time:'26 分钟前',
-  title:'Apache Tomcat — partial PUT 开启时的远程代码执行',
-  tags:['Tomcat','RCE','PUT'],
-  ai:'仅影响开启 readonly=false 的非常规配置，默认配置不受影响。已检测到公开利用脚本。',
-  ver:'11.0.0-M1 – 11.0.2',
-  pocs:[{name:'tomcat-put-rce', lang:'Python', extra:'昨天', star:'877'}]},
- {id:'CVE-2026-28843', sev:'crit', cvss:9.1, poc:'none', src:'厂商公告', time:'38 分钟前',
-  title:'Ivanti Connect Secure — 服务端请求伪造可绕过认证',
-  tags:['Ivanti','SSRF','VPN'],
-  ai:'边界设备直连公网，建议优先处置。暂无公开 POC，但该产品历史漏洞常在披露后一周内出现武器化利用。',
-  ver:'22.4R1 – 22.7R2', pocs:[]},
- {id:'CVE-2026-31052', sev:'high', cvss:7.5, poc:'verify', src:'GitHub', time:'52 分钟前',
-  title:'Jenkins — 任意文件读取导致凭据泄露',
-  tags:['Jenkins','文件读取'],
-  ai:'需已认证的低权限账户，可读取加密密钥文件后离线破解。验证 POC 已出现，建议轮换 Jenkins 凭据。',
-  ver:'2.440 – 2.485',
-  pocs:[{name:'jenkins-fileread', lang:'Java', extra:'2 天前', star:'158'}]},
- {id:'CVE-2026-30519', sev:'high', cvss:8.8, poc:'exploited', src:'微软通告', time:'2 小时前',
-  title:'Windows OLE — 邮件预览窗格远程代码执行',
-  tags:['Windows','OLE','钓鱼'],
-  ai:'Outlook 预览窗格即可触发，无需用户点击。已确认针对性利用，8 月补丁日最高优先级。',
-  ver:'Windows 10/11 全线', pocs:[]},
- {id:'CVE-2026-29907', sev:'crit', cvss:9.0, poc:'poc', src:'GitHub', time:'2 小时前',
-  title:'Nacos — 集群间通信未授权访问致配置中心接管',
-  tags:['Nacos','未授权','配置泄露'],
-  ai:'默认 7848 端口未鉴权，可注入恶意配置进而影响下游全部服务。国内互联网暴露面大，POC 批量验证脚本已流传。',
-  ver:'2.2.x – 2.4.x',
-  pocs:[{name:'nacos-cluster-bypass', lang:'Python · 批量', extra:'1 天前', star:'1.4k'}]},
- {id:'CVE-2026-28156', sev:'high', cvss:8.5, poc:'poc', src:'Wordfence', time:'3 小时前',
-  title:'WordPress 插件 Essential Blocks — 权限提升至管理员',
-  tags:['WordPress','插件','提权'],
-  ai:'活跃安装量 10 万+。订阅用户可被提权，建议站点排查插件版本。',
-  ver:'≤ 4.5.3',
-  pocs:[{name:'eb-priv-esc', lang:'PHP', extra:'3 天前', star:'97'}]},
- {id:'CVE-2026-27688', sev:'high', cvss:8.6, poc:'verify', src:'GitHub', time:'4 小时前',
-  title:'Docker Engine — runc 竞态条件容器逃逸',
-  tags:['Docker','容器逃逸'],
-  ai:'需容器内执行恶意镜像，CI 共享构建机为主要风险场景。验证 POC 已公开。',
-  ver:'≤ 27.5.1',
-  pocs:[{name:'runc-race-escape', lang:'C · 概念验证', extra:'2 天前', star:'603'}]},
- {id:'CVE-2026-29331', sev:'med', cvss:5.9, poc:'none', src:'NVD', time:'5 小时前',
-  title:'Spring Framework — WebMvc.fn 路径遍历致信息泄露',
-  tags:['Spring','路径遍历'],
-  ai:'仅影响使用 RouterFunctions 的应用，常规注解路由不受影响。',
-  ver:'6.0 – 6.2.8', pocs:[]},
- {id:'CVE-2026-26905', sev:'low', cvss:3.1, poc:'none', src:'NVD', time:'6 小时前',
-  title:'Zabbix 前端 — 反射型 XSS（需特定主题）',
-  tags:['Zabbix','XSS'],
-  ai:'影响面有限，随例行维护窗口处理即可。',
-  ver:'6.0 – 6.4', pocs:[]},
-];
-
-/* 实时推送队列（循环注入演示） */
-const QUEUE = [
- {id:'CVE-2026-31590', sev:'crit', cvss:9.9, poc:'poc', src:'GitHub',
-  title:'Veeam Backup & Replication — 反序列化远程代码执行',
-  tags:['Veeam','反序列化','备份系统'],
-  ai:'备份基础设施被攻破意味着勒索软件的最后一道防线失守，建议立即升级并排查异常恢复任务。',
-  pocs:[{name:'veeam-deser-rce', lang:'C#', extra:'刚刚', star:'44'}]},
- {id:'CVE-2026-30044', sev:'crit', cvss:9.2, poc:'poc', src:'GitHub',
-  title:'Palo Alto PAN-OS — 管理界面命令注入',
-  tags:['PAN-OS','命令注入','防火墙'],
-  ai:'管理口暴露即高危，建议确认管理面仅内网可达，并升级至热修复版本。',
-  pocs:[{name:'panos-mgmt-inject', lang:'Python', extra:'刚刚', star:'29'}]},
- {id:'CVE-2026-31221', sev:'high', cvss:8.7, poc:'verify', src:'GitHub',
-  title:'GitLab CE/EE — SSRF 窃取 CI Runner 凭据',
-  tags:['GitLab','SSRF','CI'],
-  ai:'可借 CI 权限横向至源码仓库与制品库，私有化部署重点排查。',
-  pocs:[{name:'gitlab-ci-ssrf', lang:'Ruby', extra:'刚刚', star:'17'}]},
- {id:'CVE-2026-29999', sev:'crit', cvss:9.4, poc:'poc', src:'CNVD',
-  title:'通达 OA — 任意文件上传致远程代码执行',
-  tags:['通达 OA','文件上传'],
-  ai:'国内政企部署量大，历史漏洞利用链成熟，建议按厂商补丁立即处置。',
-  pocs:[{name:'tongda-upload', lang:'Python · 批量', extra:'刚刚', star:'63'}]},
- {id:'CVE-2026-30712', sev:'med', cvss:6.5, poc:'none', src:'NVD',
-  title:'Git — clone 时符号链接路径遍历',
-  tags:['Git','客户端'],
-  ai:'克隆恶意仓库才可触发，开发环境默认配置基本免疫。',
-  pocs:[]},
- {id:'CVE-2026-31345', sev:'med', cvss:6.8, poc:'none', src:'厂商公告',
-  title:'Zimbra — 存储型 XSS 可劫持管理员会话',
-  tags:['Zimbra','XSS','邮箱'],
-  ai:'邮件正文即载体，邮件网关侧建议先行加规则拦截。',
-  pocs:[]},
-];
+const ITEMS = [];
 
 /* ================= 渲染 ================= */
 const POC_ICON = {
@@ -1097,6 +874,11 @@ const feed = document.getElementById('feed');
 const ticker = document.getElementById('ticker');
 function renderFeed(){
   feed.innerHTML = '';
+  if (!ITEMS.length){
+    feed.innerHTML = '<div style="padding:26px 16px;color:var(--muted);font-size:13px">正在加载最新情报…</div>';
+    ticker.innerHTML = '';
+    return;
+  }
   ITEMS.forEach(it => feed.appendChild(itemEl(it, false)));
   const tkHTML = ITEMS.slice(0, 9).map(it =>
     `<span><b class="mono">${it.id}</b> · ${(it.title.split('—')[0] || it.title).trim().slice(0, 40)} · <span class="tk-sev" style="color:${SEV[it.sev].c}">${SEV[it.sev].label}</span></span>`
@@ -1139,32 +921,9 @@ document.getElementById('q').addEventListener('input', function(){
   applyFilters();
 });
 
-/* ================= 实时注入 ================= */
+/* ================= 动效开关 ================= */
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let qi = 0, playing = true, statNew = 156, statPoc = 23;
 const streamBtn = document.getElementById('streamBtn');
-streamBtn.addEventListener('click', () => {
-  playing = !playing;
-  streamBtn.setAttribute('aria-pressed', String(playing));
-  streamBtn.classList.toggle('playing', playing);
-  document.getElementById('streamBtnText').textContent = playing ? '暂停接收' : '恢复接收';
-  document.querySelector('.live-pill').style.opacity = playing ? '' : '.35';
-});
-function pushItem(){
-  if (!playing || !QUEUE.length) return;
-  const it = QUEUE[qi % QUEUE.length]; qi++;
-  it.time = '刚刚';
-  feed.prepend(itemEl(it, true));
-  while (feed.children.length > 14) feed.lastChild.remove();
-  statNew++;
-  document.getElementById('statNew').textContent = statNew;
-  if (it.poc === 'poc' || it.poc === 'exploited') {
-    statPoc++;
-    document.getElementById('statPoc').innerHTML = statPoc + '<span class="u">条</span>';
-  }
-  applyFilters();
-}
-if (!reduced) setInterval(pushItem, 5200);
 
 /* ================= 时钟 ================= */
 function tick(){
@@ -1221,22 +980,7 @@ document.addEventListener('mousemove', e => {
 const PTYPES = {rce:'RCE', cmd:'命令注入', sqli:'SQL 注入', ssrf:'SSRF', deser:'反序列化',
                 priv:'权限绕过', escape:'沙箱逃逸', leak:'信息泄露', mem:'内存破坏'};
 const PST = {wild:['在野利用','wild'], ok:['已验证','ok'], wait:['待验证','wait']};
-const POCS = [
-  {id:'CVE-2026-31287', sev:'crit', repo:'confluence-rce-auto', prod:'Confluence OGNL 注入 RCE', type:'rce',    lang:'Python · 一键化', st:'wild', star:'2.1k', seen:'3 天前', src:'GitHub'},
-  {id:'CVE-2026-29907', sev:'crit', repo:'nacos-cluster-bypass', prod:'Nacos 集群未授权访问',   type:'priv',   lang:'Python · 批量',  st:'ok',   star:'1.4k', seen:'1 天前', src:'GitHub'},
-  {id:'CVE-2026-30101', sev:'high', repo:'tomcat-put-rce',      prod:'Tomcat partial PUT RCE', type:'rce',    lang:'Python',          st:'ok',   star:'877',  seen:'昨天',  src:'Exploit-DB'},
-  {id:'CVE-2026-27688', sev:'high', repo:'runc-race-escape',    prod:'Docker runc 竞态逃逸',   type:'escape', lang:'C',              st:'wait', star:'603',  seen:'2 天前', src:'GitHub'},
-  {id:'CVE-2026-29814', sev:'crit', repo:'fmt-oob-write-poc',   prod:'FortiManager 越界写入',  type:'mem',    lang:'Go',              st:'wait', star:'312',  seen:'6 小时前', src:'GitHub'},
-  {id:'CVE-2026-31188', sev:'high', repo:'v8-type-confuse',     prod:'Chrome V8 类型混淆',     type:'rce',    lang:'C++',             st:'wait', star:'205',  seen:'2 天前', src:'GitHub'},
-  {id:'CVE-2026-31052', sev:'high', repo:'jenkins-fileread',    prod:'Jenkins 任意文件读取',   type:'leak',   lang:'Java',            st:'ok',   star:'158',  seen:'2 天前', src:'GitHub'},
-  {id:'CVE-2026-28156', sev:'high', repo:'eb-priv-esc',         prod:'WordPress EB 提权',      type:'priv',   lang:'PHP',             st:'ok',   star:'97',   seen:'3 天前', src:'Wordfence'},
-  {id:'CVE-2026-29654', sev:'high', repo:'zhiyuan-sqli',        prod:'致远 OA SQL 注入',       type:'sqli',   lang:'Java',            st:'ok',   star:'88',   seen:'4 天前', src:'CNVD'},
-  {id:'CVE-2026-29999', sev:'crit', repo:'tongda-upload',       prod:'通达 OA 文件上传 RCE',   type:'rce',    lang:'Python · 批量',  st:'ok',   star:'63',   seen:'5 天前', src:'CNVD'},
-  {id:'CVE-2026-31590', sev:'crit', repo:'veeam-deser-rce',     prod:'Veeam 反序列化 RCE',     type:'deser',  lang:'C#',              st:'wait', star:'44',   seen:'6 天前', src:'GitHub'},
-  {id:'CVE-2026-30044', sev:'crit', repo:'panos-mgmt-inject',   prod:'PAN-OS 管理界面命令注入', type:'cmd',   lang:'Python',          st:'ok',   star:'29',   seen:'6 天前', src:'GitHub'},
-  {id:'CVE-2026-31221', sev:'high', repo:'gitlab-ci-ssrf',      prod:'GitLab SSRF 窃取凭据',   type:'ssrf',   lang:'Ruby',            st:'wait', star:'17',   seen:'1 周前', src:'GitHub'},
-  {id:'CVE-2026-30772', sev:'med',  repo:'modbus-gw-leak',      prod:'工业网关 Modbus 未授权', type:'leak',   lang:'Python',          st:'ok',   star:'12',   seen:'1 周前', src:'PacketStorm'}
-];
+const POCS = [];
 const pocBody = document.getElementById('pocBody');
 function renderPocs(){
   pocBody.innerHTML = POCS.map(p => `
@@ -1250,6 +994,9 @@ function renderPocs(){
     <td><span class="tag">${p.src}</span></td>
     <td>${p.url ? `<a class="link-btn" href="${p.url}" target="_blank" rel="noopener">仓库 ↗</a>` : '<a class="link-btn" href="#" onclick="return false">仓库 ↗</a>'}</td>
   </tr>`).join('');
+  if (!POCS.length)
+    pocBody.innerHTML = '<tr><td colspan="8" style="padding:22px;text-align:center;color:var(--muted);font-size:13px">暂无收录</td></tr>';
+  document.getElementById('pocPager').textContent = `共 ${POCS.length} 条`;
 }
 renderPocs();
 /* POC 筛选 */
@@ -1280,9 +1027,8 @@ document.getElementById('pocQ').addEventListener('input', function(){
 });
 
 /* ================= 真实数据加载 ================= */
-/* 优先加载采集脚本生成的 data/data.json（GitHub Actions 每小时抓取
-   NVD / GitHub POC 仓库 / CISA KEV 后提交）；加载失败（本地 file:// 打开、
-   断网）则保留上方演示数据，页面照常工作 */
+/* 加载采集脚本生成的 data/data.json（GitHub Actions 每小时抓取
+   NVD / GitHub POC 仓库 / CISA KEV 后提交到仓库）；失败则提示刷新 */
 function renderStats(d){
   document.getElementById('statNew').textContent = d.stats.new;
   document.getElementById('statHigh').innerHTML =
@@ -1291,30 +1037,43 @@ function renderStats(d){
     d.stats.poc + '<span class="u">条</span>';
   document.getElementById('statWild').innerHTML =
     d.items.filter(i => i.poc === 'exploited').length + '<span class="u">条</span>';
+  /* 雷达图例 + 光点 */
+  const cnt = {crit:0, high:0, med:0, low:0};
+  d.items.forEach(i => { cnt[i.sev] = (cnt[i.sev] || 0) + 1; });
+  ['crit','high','med','low'].forEach(s =>
+    document.getElementById('radar' + s[0].toUpperCase() + s.slice(1)).textContent = cnt[s]);
+  if (window.__radarSet) window.__radarSet(cnt);
+  /* 数据源计数 */
+  document.getElementById('srcNvd').textContent = d.stats.new;
+  document.getElementById('srcGh').textContent = (d.pocs || []).length;
+  document.getElementById('srcKev').textContent = d.items.filter(i => i.poc === 'exploited').length;
 }
 fetch('data/data.json')
   .then(r => r.ok ? r.json() : null)
   .then(d => {
-    if (!d || !Array.isArray(d.items) || !d.items.length) return;
+    if (!d || !Array.isArray(d.items) || !d.items.length) throw new Error('no-data');
     ITEMS.length = 0; ITEMS.push(...d.items);
     POCS.length  = 0; POCS.push(...(d.pocs || []));
-    QUEUE.length = 0;
     renderFeed(); renderPocs();
     applyFilters(); applyPocFilters();
     renderStats(d);
-    /* 真实数据模式：无逐条注入，改为展示最近采集时间 */
-    playing = false;
     streamBtn.disabled = true;
-    streamBtn.classList.remove('playing');
     document.getElementById('streamBtnText').textContent = '每小时更新';
     document.querySelector('.live-pill').title = '数据每小时抓取一次';
-    document.querySelectorAll('.rail .s-delta').forEach(el => el.style.display = 'none');
     const t = new Date(Date.parse(d.generatedAt) + 8 * 3600e3); // UTC → 北京时间
     const p2 = n => String(n).padStart(2, '0');
-    document.getElementById('dataAt').textContent =
-      `数据 ${p2(t.getUTCHours())}:${p2(t.getUTCMinutes())} 更新 · 真实源`;
+    const hm = `${p2(t.getUTCHours())}:${p2(t.getUTCMinutes())}`;
+    document.getElementById('dataAt').textContent = `数据 ${hm} 更新 · 真实源`;
+    document.getElementById('pocUpdatedAt').textContent = `更新于 ${hm}`;
   })
-  .catch(() => {});
+  .catch(() => {
+    document.getElementById('dataAt').textContent = '数据加载失败';
+    document.getElementById('streamBtnText').textContent = '加载失败';
+    if (!feed.querySelector('.feed-item'))
+      feed.innerHTML = '<div style="padding:26px 16px;color:var(--muted);font-size:13px">数据加载失败 — 请检查网络后刷新页面（本地直接打开文件无法读取数据）。</div>';
+    if (!pocBody.children.length)
+      pocBody.innerHTML = '<tr><td colspan="8" style="padding:22px;text-align:center;color:var(--muted);font-size:13px">暂无数据</td></tr>';
+  });
 
 /* ================= 杂项交互 ================= */
 /* 复制按钮 */
@@ -1350,12 +1109,16 @@ document.querySelectorAll('.new-rule, [data-goto-builder]').forEach(b =>
   const cv = document.getElementById('radar');
   const ctx = cv.getContext('2d');
   const S = 316, C = S/2, R = C - 14;
-  const blips = [
-    {a: 0.4, r: 0.28, sev:'crit'}, {a: 2.1, r: 0.62, sev:'high'}, {a: 3.6, r: 0.18, sev:'crit'},
-    {a: 4.4, r: 0.80, sev:'med'},  {a: 5.3, r: 0.45, sev:'high'}, {a: 1.2, r: 0.90, sev:'low'},
-    {a: 2.9, r: 0.35, sev:'high'}, {a: 5.9, r: 0.70, sev:'med'},  {a: 0.9, r: 0.55, sev:'med'},
-    {a: 3.1, r: 0.95, sev:'low'},  {a: 4.0, r: 0.30, sev:'med'},  {a: 2.5, r: 0.75, sev:'crit'}
-  ];
+  /* 光点由真实数据驱动：renderStats 后调用 __radarSet(各严重度计数) */
+  let blips = [];
+  window.__radarSet = counts => {
+    blips = [];
+    ['crit','high','med','low'].forEach(sev => {
+      const n = Math.min(counts[sev] || 0, 14);   // 每档最多 14 个光点
+      for (let i = 0; i < n; i++)
+        blips.push({a: Math.random()*Math.PI*2, r: 0.15 + Math.random()*0.8, sev});
+    });
+  };
   const cols = getComputedStyle(document.documentElement);
   const sevColor = s => cols.getPropertyValue('--' + s).trim() ||
     ({crit:'#F43F5E',high:'#FB923C',med:'#FDE047',low:'#38BDF8'})[s];
