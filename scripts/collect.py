@@ -284,6 +284,8 @@ def build(repos, kev):
             'tags': tag_list[:3],
             'ai': ai,
             'ver': f['ver'] or '详见公告',
+            'desc': cut(f['desc'], 900),   # NVD 英文原文描述（详情弹窗用）
+            'refs': [u for u in f['refs'] if u.startswith('http')][:6],
             'link': f'https://nvd.nist.gov/vuln/detail/{f["id"]}',
             'pocs': [{'name': r['full_name'], 'lang': r.get('language') or '—',
                       'extra': rel_zh(r.get('pushed_at', '')),

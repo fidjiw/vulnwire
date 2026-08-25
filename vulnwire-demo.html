@@ -239,6 +239,14 @@ a:hover{text-decoration:underline}
 .un-list li::marker{color:var(--accent)}
 .un-ok{flex:1;background:var(--accent);color:var(--accent-ink);border:none;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13.5px;cursor:pointer;transition:filter .15s}
 .un-ok:hover{filter:brightness(1.08)}
+
+/* ============ 详情弹窗 · 描述与参考 ============ */
+.m-note{margin-left:8px;font-family:"Chakra Petch",sans-serif;font-size:10px;font-weight:400;letter-spacing:.04em;text-transform:none;color:var(--faint)}
+.m-desc{margin:0;font-size:13px;line-height:1.75;color:var(--text);overflow-wrap:anywhere}
+.m-desc.muted{color:var(--muted)}
+.ref-list{display:grid;gap:7px}
+.ref-list a{display:inline-block;font-family:"IBM Plex Mono","PingFang SC",monospace;font-size:11.5px;color:var(--accent);text-decoration:none;overflow-wrap:anywhere;border-bottom:1px dashed color-mix(in srgb,var(--accent) 35%,transparent);transition:border-color .15s}
+.ref-list a:hover{border-bottom-style:solid}
 .d-row{font-size:12.5px;color:var(--muted)}
 .d-row b{color:var(--text);font-weight:600}
 .d-poc{
@@ -1059,6 +1067,11 @@ const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;')
   .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+const shortRef = u => {
+  const s = String(u).replace(/^https?:\/\//, '').replace(/^www\./, '');
+  return s.length > 58 ? s.slice(0, 57) + '…' : s;
+};
+
 function vulnDetail(it){
   const pocRows = (it.pocs || []).map(p =>
     `<div class="d-poc"><b class="mono">${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>` : esc(p.name)}</b><span class="lang">${esc(p.lang)}</span><span class="lang">${esc(p.extra)}</span><span class="stars">★ ${esc(p.star)}</span></div>`
@@ -1075,19 +1088,30 @@ function vulnDetail(it){
       <span class="poc-badge ${it.poc}">${POC_ICON[it.poc]}${POC[it.poc].label}</span>
       ${it.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}
     </div>
+    <div class="m-sec">漏洞描述<span class="m-note">NVD 原文</span></div>
+    ${it.desc
+      ? `<p class="m-desc">${esc(it.desc)}</p>`
+      : '<p class="m-desc muted">完整描述暂未采集 — 见 NVD 条目。</p>'}
     <div class="m-sec">关键属性</div>
     <div class="m-grid">
       <div class="d-row">CVSS 评分：<b class="mono">${it.cvss.toFixed(1)}（${SEV[it.sev].label}）</b></div>
       <div class="d-row">利用状态：<b>${POC[it.poc].label}</b></div>
-      <div class="d-row">影响版本：<b class="mono">${esc(it.ver || '详见公告')}</b></div>
       <div class="d-row">披露时间：<b>${esc(it.time || '近期')}</b></div>
       <div class="d-row">数据来源：<b>${esc(it.src)}</b></div>
       <div class="d-row">关联 POC：<b>${(it.pocs || []).length} 个仓库</b></div>
+      <div class="d-row">参考链接：<b>${(it.refs || []).length} 条</b></div>
     </div>
-    <div class="m-sec">摘要</div>
+    <div class="m-sec">影响版本</div>
+    ${(it.ver && it.ver !== '详见公告')
+      ? `<p class="m-desc mono">${esc(it.ver)}</p>`
+      : '<p class="m-desc muted">NVD 暂未提供版本范围（CPE 未收录），详见厂商公告。</p>'}
+    <div class="m-sec">处置建议<span class="m-note">规则生成 · 非厂商官方</span></div>
     <p class="fi-ai" style="margin:0">${esc(it.ai)}</p>
     <div class="m-sec">公开 POC 仓库</div>
     ${pocRows}
+    ${(it.refs || []).length ? `<div class="m-sec">相关参考</div>
+    <div class="ref-list">${it.refs.slice(0, 6).map(r =>
+      `<a href="${esc(r)}" target="_blank" rel="noopener">${esc(shortRef(r))}</a>`).join('')}</div>` : ''}
     <div class="m-actions">
       ${it.link ? `<a class="link-btn" href="${esc(it.link)}" target="_blank" rel="noopener">NVD 条目 ↗</a>` : ''}
       <a class="link-btn" href="https://github.com/search?q=${encodeURIComponent(it.id)}&amp;type=repositories" target="_blank" rel="noopener">GitHub 搜索 ↗</a>
@@ -1222,10 +1246,11 @@ fetch('data/data.json')
 /* 每次部署功能改动时：更新 SITE_VERSION 并在 CHANGELOG 头部加一条（新在前）。
    回访用户版本落后时弹居中公告说明改动；首次访问不弹（静默记录版本）。
    「知道了」/Esc/遮罩/✕ 任一关闭后不再重复弹，直到下一个新版本。 */
-const SITE_VERSION = '2026-08-25';
+const SITE_VERSION = '2026-08-25-2';
 const CHANGELOG = [
   { date: '2026-08-25', items: [
     '漏洞情报与 POC 仓库支持点击弹窗查看完整详情：关键属性、摘要、关联仓库与原文链接',
+    '漏洞详情新增：NVD 原文描述、影响版本、处置建议与相关参考链接',
     '新增网站更新公告：版本更新后自动弹窗说明本次改动',
   ]},
   { date: '2026-08-24', items: [
@@ -1242,8 +1267,7 @@ function maybeShowUpdateNotice(){
   const save = () => { try { store && store.setItem('vwVer', SITE_VERSION); } catch(_){} };
   if (!lastSeen){ save(); return; }          // 首次访问：记录版本，不打扰
   if (lastSeen === SITE_VERSION) return;     // 已看过当前版本
-  const fresh = CHANGELOG.filter(e => e.date > lastSeen);
-  if (!fresh.length){ save(); return; }
+  const fresh = CHANGELOG.slice(0, 3);       // 版本有变即展示最近 3 条
   const html = `
     <div class="un-head">
       <span class="un-badge">新版本</span>
