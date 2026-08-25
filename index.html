@@ -912,14 +912,14 @@ function itemEl(it, fresh){
 
 const feed = document.getElementById('feed');
 const ticker = document.getElementById('ticker');
-function renderFeed(){
+function renderFeed(freshSet){
   feed.innerHTML = '';
   if (!ITEMS.length){
     feed.innerHTML = '<div style="padding:26px 16px;color:var(--muted);font-size:13px">正在加载最新情报…</div>';
     ticker.innerHTML = '';
     return;
   }
-  ITEMS.forEach(it => feed.appendChild(itemEl(it, false)));
+  ITEMS.forEach(it => feed.appendChild(itemEl(it, freshSet ? freshSet.has(it.id) : false)));
   const tkHTML = ITEMS.slice(0, 9).map(it =>
     `<span><b class="mono">${it.id}</b> · ${(it.title.split('—')[0] || it.title).trim().slice(0, 40)} · <span class="tk-sev" style="color:${SEV[it.sev].c}">${SEV[it.sev].label}</span></span>`
   ).join('');
@@ -1271,23 +1271,37 @@ function renderStats(d){
   document.getElementById('srcGh').textContent = (d.pocs || []).length;
   document.getElementById('srcKev').textContent = d.items.filter(i => i.poc === 'exploited').length;
 }
+/* applyData：首次加载与自动刷新共用；auto 模式保留新增条目动画与提示 */
+function applyData(d, auto){
+  lastGen = d.generatedAt || lastGen;
+  const prevIds = auto ? new Set(ITEMS.map(i => i.id)) : null;
+  ITEMS.length = 0; ITEMS.push(...d.items);
+  POCS.length  = 0; POCS.push(...(d.pocs || []));
+  /* 搜索模式下不打断当前结果，清空搜索后 renderFeed 自然渲染新数据 */
+  if (state.q.length < 2){ renderFeed(auto ? new Set(d.items.filter(i => !prevIds.has(i.id)).map(i => i.id)) : undefined); applyFilters(); }
+  renderPocs(); applyPocFilters();
+  renderStats(d);
+  streamBtn.disabled = true;
+  document.getElementById('streamBtnText').textContent = '每小时更新';
+  document.querySelector('.live-pill').title = '数据每小时抓取，页面自动刷新';
+  const t = new Date(Date.parse(d.generatedAt) + 8 * 3600e3); // UTC → 北京时间
+  const p2 = n => String(n).padStart(2, '0');
+  const hm = `${p2(t.getUTCHours())}:${p2(t.getUTCMinutes())}`;
+  document.getElementById('dataAt').textContent = `数据 ${hm} 更新 · 真实源`;
+  document.getElementById('pocUpdatedAt').textContent = `更新于 ${hm}`;
+  if (auto && state.q.length < 2){
+    const n = d.items.filter(i => !prevIds.has(i.id)).length;
+    updateHistInfo(n ? `⇄ 已自动刷新 · 新增 ${n} 条情报` : '⇄ 已自动刷新 · 暂无新增');
+    clearTimeout(applyData._fade);
+    applyData._fade = setTimeout(() => { if (!state.q || state.q.length < 2) updateHistInfo(''); }, 9000);
+  }
+}
+let lastGen = '';
 fetch('data/data.json')
   .then(r => r.ok ? r.json() : null)
   .then(d => {
     if (!d || !Array.isArray(d.items) || !d.items.length) throw new Error('no-data');
-    ITEMS.length = 0; ITEMS.push(...d.items);
-    POCS.length  = 0; POCS.push(...(d.pocs || []));
-    renderFeed(); renderPocs();
-    applyFilters(); applyPocFilters();
-    renderStats(d);
-    streamBtn.disabled = true;
-    document.getElementById('streamBtnText').textContent = '每小时更新';
-    document.querySelector('.live-pill').title = '数据每小时抓取一次';
-    const t = new Date(Date.parse(d.generatedAt) + 8 * 3600e3); // UTC → 北京时间
-    const p2 = n => String(n).padStart(2, '0');
-    const hm = `${p2(t.getUTCHours())}:${p2(t.getUTCMinutes())}`;
-    document.getElementById('dataAt').textContent = `数据 ${hm} 更新 · 真实源`;
-    document.getElementById('pocUpdatedAt').textContent = `更新于 ${hm}`;
+    applyData(d);
   })
   .catch(() => {
     document.getElementById('dataAt').textContent = '数据加载失败';
@@ -1298,13 +1312,32 @@ fetch('data/data.json')
       pocBody.innerHTML = '<tr><td colspan="8" style="padding:22px;text-align:center;color:var(--muted);font-size:13px">暂无数据</td></tr>';
   });
 
+/* ================= 实时情报流自动刷新 ================= */
+/* 采集每小时提交新 data.json；页面停留期间每 5 分钟静默比对一次，
+   generatedAt 变化即原位刷新（不打断搜索/筛选），后台标签页跳过 */
+async function autoRefresh(){
+  if (document.hidden) return;
+  try{
+    const r = await fetch(`data/data.json?t=${Date.now()}`, {cache: 'no-store'});
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || !Array.isArray(d.items) || !d.items.length) return;
+    if (d.generatedAt === lastGen) return;
+    const recover = !lastGen;              // 打开时加载失败，现在恢复了
+    applyData(d, !recover);
+  }catch(_){ /* 网络波动，下个周期再试 */ }
+}
+setInterval(autoRefresh, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) autoRefresh(); });
+
 /* ================= 网站更新公告（版本变更时居中弹窗） ================= */
 /* 每次部署功能改动时：更新 SITE_VERSION 并在 CHANGELOG 头部加一条（新在前）。
    回访用户版本落后时弹居中公告说明改动；首次访问不弹（静默记录版本）。
    「知道了」/Esc/遮罩/✕ 任一关闭后不再重复弹，直到下一个新版本。 */
-const SITE_VERSION = '2026-08-25-3';
+const SITE_VERSION = '2026-08-25-4';
 const CHANGELOG = [
   { date: '2026-08-25', items: [
+    '实时情报流自动刷新：页面停留期间静默同步每小时新数据，新增条目动画高亮，不打断搜索',
     '搜索升级：输入关键词自动检索历史漏洞档案，不再限于最近 72 小时',
     'AI 中文摘要：GLM 生成摘要为主，DeepL 机翻兜底（配置后生效）',
     '新增订阅推送：高危/在野利用漏洞可推送 Telegram 与飞书（配置后生效）',
