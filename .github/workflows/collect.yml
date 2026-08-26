@@ -28,7 +28,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+          GLM_BASE_URL: ${{ vars.GLM_BASE_URL }}
+          GLM_MODEL: ${{ vars.GLM_MODEL }}
           DEEPL_KEY: ${{ secrets.DEEPL_KEY }}
+          DEEPL_BASE_URL: ${{ vars.DEEPL_BASE_URL }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
@@ -38,7 +41,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/data.json data/history.json
+          git add data/data.json data/history.json rss.xml
           if git diff --cached --quiet; then
             echo "数据无变化，跳过提交"
           else

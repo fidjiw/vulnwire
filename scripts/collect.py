@@ -15,9 +15,11 @@ import os
 import re
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 
 # ---------------- 配置 ----------------
 NVD_URL = 'https://services.nvd.nist.gov/rest/json/cves/2.0'
@@ -25,6 +27,8 @@ GH_SEARCH_URL = 'https://api.github.com/search/repositories'
 KEV_URL = ('https://www.cisa.gov/sites/default/files/feeds/'
            'known_exploited_vulnerabilities.json')
 OUT_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'data.json')
+RSS_PATH = os.path.join(os.path.dirname(__file__), '..', 'rss.xml')
+SITE_URL = 'https://fidjiw.github.io/vulnwire/'
 
 WINDOW_HOURS = 72          # 情报流窗口：近 72 小时新披露的 CVE
 POC_PUSH_WINDOW_H = 24 * 7 # POC 仓库：近 7 天有推送的
@@ -77,6 +81,12 @@ def http_json(url, headers=None, tries=3):
                 'User-Agent': 'VulnWire-collector/1.0', 'Accept': 'application/json'})
             with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
                 return json.loads(r.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:                 # 资源不存在,重试无意义(OSV 未收录等)
+                return None
+            last = e
+            if i < tries - 1:
+                time.sleep(3 * (i + 1))
         except Exception as e:  # noqa: BLE001 — 任一源失败都要降级
             last = e
             if i < tries - 1:
@@ -194,7 +204,17 @@ def nvd_fields(v):
         for d in w.get('description', []):
             if d.get('value', '').startswith('CWE-'):
                 cwes.append(d['value'])
-    refs = [r.get('url') for r in c.get('references', []) if r.get('url')]
+    def ref_label(tags):
+        """NVD 参考标签 → 中文徽标（详情弹窗相关参考用）"""
+        if 'Patch' in tags:
+            return '补丁'
+        if 'Vendor Advisory' in tags:
+            return '厂商公告'
+        if 'Exploit' in tags:
+            return 'Exploit'
+        return ''
+    refs = [{'u': r.get('url'), 'l': ref_label(r.get('tags') or [])}
+            for r in c.get('references', []) if r.get('url')]
     # CPE → 产品名 + 版本范围
     product, ver = None, None
     vers = set()
@@ -227,6 +247,49 @@ def vuln_type(cwes, desc):
         if re.search(pat, low):
             return val
     return ('新披露', 'leak')
+
+# ---------------- OSV 版本补全 ----------------
+OSV_URL = 'https://api.osv.dev/v1/vulns/'
+
+def osv_enrich(items):
+    """NVD 未给出 CPE 版本时查 OSV(GHSA),返回 {id: (ver, 生态标签)};失败静默降级"""
+    want = [it for it in items if not it.get('ver') or it.get('ver') == '详见公告']
+    if not want:
+        return {}
+    out = {}
+    for it in want[:40]:                    # 每小时最多 40 次查询,控总量
+        d = http_json(OSV_URL + it['id'], tries=2)
+        if not d:
+            continue
+        for aff in (d.get('affected') or [])[:3]:
+            pkg = aff.get('package') or {}
+            eco = (pkg.get('ecosystem') or '').split(':')[0]
+            name = pkg.get('name') or ''
+            rng = next((r for r in (aff.get('ranges') or [])
+                        if r.get('type') in ('ECOSYSTEM', 'SEMVER')
+                        and r.get('events')), None)
+            if rng:
+                ev = rng['events']
+                intro = next((e['introduced'] for e in ev
+                              if e.get('introduced') and e['introduced'] != '0'), '')
+                fixed = next((e['fixed'] for e in ev if e.get('fixed')), '')
+                parts = []
+                if intro:
+                    parts.append('≥ ' + str(intro))
+                if fixed:
+                    parts.append('< ' + str(fixed))
+                if not parts:
+                    continue
+                ver = ' '.join(x for x in (eco, name, ' / '.join(parts)) if x)
+                out[it['id']] = (ver, eco)
+                break
+            if aff.get('versions'):
+                ver = ' '.join(x for x in (eco, name,
+                                           ' / '.join(map(str, aff['versions'][:3]))) if x)
+                out[it['id']] = (ver, eco)
+                break
+    print(f'  OSV 版本补全：{len(out)}/{len(want)} 条')
+    return out
 
 # ---------------- 组装 ----------------
 def build(repos, kev):
@@ -274,6 +337,8 @@ def build(repos, kev):
         else:
             ai += '暂无公开 POC，按常规补丁窗口安排。'
         ai += f' 影响版本：{f["ver"] or "详见公告"}。'
+        if any(r['l'] == '补丁' for r in f['refs']):
+            ai += ' 官方补丁已发布，见「相关参考」。'
         items.append({
             'id': f['id'], 'sev': sev,
             'cvss': round(f['score'], 1) if f['score'] is not None else 0.0,
@@ -286,7 +351,7 @@ def build(repos, kev):
             'ai': ai,
             'ver': f['ver'] or '详见公告',
             'desc': cut(f['desc'], 900),   # NVD 英文原文描述（详情弹窗用）
-            'refs': [u for u in f['refs'] if u.startswith('http')][:6],
+            'refs': [r for r in f['refs'] if r['u'].startswith('http')][:6],
             'link': f'https://nvd.nist.gov/vuln/detail/{f["id"]}',
             'pocs': [{'name': r['full_name'], 'lang': r.get('language') or '—',
                       'extra': rel_zh(r.get('pushed_at', '')),
@@ -352,15 +417,21 @@ def slim(it):
     return e
 
 # ---------------- AI 中文摘要（GLM） ----------------
-GLM_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+def glm_url():
+    """GLM 端点：GLM_BASE_URL 可覆盖为官方地址或任意 OpenAI 兼容中转"""
+    base = os.environ.get('GLM_BASE_URL',
+                          'https://open.bigmodel.cn/api/paas/v4').rstrip('/')
+    return base if base.endswith('/chat/completions') else base + '/chat/completions'
 
 def ai_summarize(pending):
     """批量生成中文标题 + 摘要，返回 {id: (titleZh, zh)}；无 key / 失败返回部分结果"""
     key = os.environ.get('GLM_API_KEY')
     if not key or not pending:
         return {}
+    url = glm_url()
+    model = os.environ.get('GLM_MODEL', 'glm-4-flash')
     out = {}
-    for k in range(0, len(pending), 8):   # 每批 8 条，glm-4-flash 免费额度足够
+    for k in range(0, len(pending), 8):   # 每批 8 条
         batch = pending[k:k + 8]
         payload = [{'i': it['id'], 'en': it['title'][:120],
                     'desc': (it.get('desc') or '')[:500]} for it in batch]
@@ -368,10 +439,10 @@ def ai_summarize(pending):
                   '和 2-3 句中文摘要（漏洞影响、利用条件、处置要点）。'
                   '只返回 JSON 数组，每项 {"i":"CVE编号","t":"中文标题","s":"中文摘要"}：\n'
                   + json.dumps(payload, ensure_ascii=False))
-        body = json.dumps({'model': 'glm-4-flash', 'temperature': 0.2,
+        body = json.dumps({'model': model, 'temperature': 0.2,
                            'max_tokens': 1800,
                            'messages': [{'role': 'user', 'content': prompt}]}).encode()
-        req = urllib.request.Request(GLM_URL, data=body, headers={
+        req = urllib.request.Request(url, data=body, headers={
             'Authorization': f'Bearer {key}',
             'Content-Type': 'application/json'})
         try:
@@ -389,14 +460,21 @@ def ai_summarize(pending):
     return out
 
 # ---------------- DeepL 翻译备选 ----------------
+def deepl_url(key):
+    """DeepL 端点：DEEPL_BASE_URL 可覆盖为自建代理；默认按 key 后缀自动选 free/pro"""
+    base = os.environ.get('DEEPL_BASE_URL')
+    if base:
+        base = base.rstrip('/')
+        return base if base.endswith('/v2/translate') else base + '/v2/translate'
+    return ('https://api-free.deepl.com/v2/translate' if key.endswith(':fx')
+            else 'https://api.deepl.com/v2/translate')
+
 def deepl_translate(pending):
     """GLM 之外的兜底:DeepL 翻译标题+描述,返回 {id: (titleZh, zh)}"""
     key = os.environ.get('DEEPL_KEY')
     if not key or not pending:
         return {}
-    # free 版 key 以 :fx 结尾走 api-free,pro key 走正式端点
-    url = ('https://api-free.deepl.com/v2/translate' if key.endswith(':fx')
-           else 'https://api.deepl.com/v2/translate')
+    url = deepl_url(key)
     out = {}
     for k in range(0, len(pending), 20):   # 每批 20 条(每条 2 段文本)
         batch = pending[k:k + 20]
@@ -422,17 +500,8 @@ def deepl_translate(pending):
     return out
 
 # ---------------- 订阅推送 ----------------
-def push_notify(new_items):
-    """新增 crit/high/在野利用 → Telegram Bot + 飞书 webhook；未配置静默跳过"""
-    hits = [i for i in new_items
-            if i['sev'] in ('crit', 'high') or i['poc'] == 'exploited'][:10]
-    if not hits:
-        return
-    lines = [f'🔴 VulnWire 新增高危漏洞 {len(hits)} 条']
-    for i in hits:
-        name = i.get('titleZh') or i['title'][:60]
-        lines.append(f"▪ {i['id']}〔{SEV_LABEL[i['sev']]}〕{name}\n  {i['link']}")
-    text = '\n'.join(lines)[:3800]
+def send_text(text):
+    """文本 → Telegram Bot + 飞书 webhook;未配置静默跳过"""
     tg_tok, tg_chat = os.environ.get('TG_BOT_TOKEN'), os.environ.get('TG_CHAT_ID')
     if tg_tok and tg_chat:
         try:
@@ -441,7 +510,7 @@ def push_notify(new_items):
                 f'https://api.telegram.org/bot{tg_tok}/sendMessage', data=body,
                 headers={'Content-Type': 'application/json'})
             urllib.request.urlopen(req, timeout=30)
-            print(f'  推送 Telegram：{len(hits)} 条')
+            print('  推送 Telegram：OK')
         except Exception as ex:  # noqa: BLE001
             print(f'  ! Telegram 推送失败：{ex}', file=sys.stderr)
     fs = os.environ.get('FEISHU_WEBHOOK')
@@ -452,9 +521,54 @@ def push_notify(new_items):
             req = urllib.request.Request(fs, data=body,
                                          headers={'Content-Type': 'application/json'})
             urllib.request.urlopen(req, timeout=30)
-            print(f'  推送飞书：{len(hits)} 条')
+            print('  推送飞书：OK')
         except Exception as ex:  # noqa: BLE001
             print(f'  ! 飞书推送失败：{ex}', file=sys.stderr)
+
+def push_notify(new_items):
+    """新增 crit/high/在野利用 → Telegram Bot + 飞书 webhook"""
+    hits = [i for i in new_items
+            if i['sev'] in ('crit', 'high') or i['poc'] == 'exploited'][:10]
+    if not hits:
+        return
+    lines = [f'🔴 VulnWire 新增高危漏洞 {len(hits)} 条']
+    for i in hits:
+        name = i.get('titleZh') or i['title'][:60]
+        lines.append(f"▪ {i['id']}〔{SEV_LABEL[i['sev']]}〕{name}\n  {i['link']}")
+    send_text('\n'.join(lines)[:3800])
+
+# ---------------- RSS 输出 ----------------
+def write_rss(items):
+    """情报流 → 根目录 rss.xml(≤30 条),供订阅器与浏览器自动发现"""
+    def x(s):
+        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;') \
+            .replace('>', '&gt;').replace('"', '&quot;')
+    rows = []
+    for it in items[:30]:
+        try:
+            dt = format_datetime(datetime.fromisoformat(
+                (it.get('pub') or '').replace('Z', '+00:00')).astimezone(timezone.utc))
+        except Exception:  # noqa: BLE001 — 无有效时间就不输出 pubDate
+            dt = ''
+        title = f"{it['id']}〔{SEV_LABEL[it['sev']]}〕{it.get('titleZh') or it['title']}"
+        desc = it.get('zh') or it.get('ai') or it.get('title') or ''
+        rows.append(
+            '<item><title>' + x(title) + '</title>'
+            '<link>' + x(it['link']) + '</link>'
+            '<guid>' + x(it['link']) + '</guid>'
+            + (f'<pubDate>{dt}</pubDate>' if dt else '') +
+            '<description>' + x(desc) + '</description></item>')
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+           '<rss version="2.0"><channel>'
+           '<title>漏讯 VulnWire · 实时漏洞情报</title>'
+           f'<link>{SITE_URL}</link>'
+           '<description>NVD / GitHub POC / CISA KEV 每小时聚合，附 AI 中文摘要</description>'
+           '<language>zh-CN</language>'
+           f'<lastBuildDate>{format_datetime(datetime.now(timezone.utc))}</lastBuildDate>'
+           + ''.join(rows) + '</channel></rss>\n')
+    with open(RSS_PATH, 'w', encoding='utf-8') as fp:
+        fp.write(xml)
+    print(f'  写出 {RSS_PATH}: {len(rows)} 条')
 
 def main():
     print(f'[{datetime.now(TZ8):%Y-%m-%d %H:%M}] 开始采集（展示时区 UTC+8）')
@@ -463,7 +577,20 @@ def main():
     out = build(repos, kev)
     if not out or not out['items']:
         print('无有效数据，保留旧 data.json', file=sys.stderr)
+        # 数据滞留告警：所有源都挂了要让人知道（页面只会显示旧数据）
+        send_text('⚠️ VulnWire 采集失败：所有数据源不可达，已保留旧数据。'
+                  f'（{datetime.now(TZ8):%m-%d %H:%M}）')
         return 0
+
+    # OSV 补全：NVD 未给出 CPE 版本时，用 OSV 结构化范围填影响版本
+    osv_fix = osv_enrich(out['items'])
+    for it in out['items']:
+        fix = osv_fix.get(it['id'])
+        if fix:
+            it['ver'], eco = fix
+            it['ai'] = it['ai'].replace('影响版本：详见公告', f'影响版本：{it["ver"]}')
+            if eco and eco not in it['tags']:
+                it['tags'] = (it['tags'] + [eco])[:4]
 
     # 历史档案：命中缓存的复用 AI 摘要，其余调 GLM 生成
     cold_start = not os.path.exists(HIST_PATH)
@@ -491,6 +618,7 @@ def main():
         json.dump(out, fp, ensure_ascii=False, separators=(',', ':'))
     print(f'  写出 {OUT_PATH}: items={len(out["items"])} '
           f'pocs={len(out["pocs"])} stats={out["stats"]}')
+    write_rss(out['items'])
 
     # 合并历史：窗口内条目字段刷新（保 firstSeen），窗口外原样保留，新→旧截断
     now_iso = datetime.now(timezone.utc).isoformat(timespec='seconds')
